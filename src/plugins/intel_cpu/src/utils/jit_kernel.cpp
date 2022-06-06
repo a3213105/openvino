@@ -134,8 +134,8 @@ InferenceEngine::Precision type2precision<uint8_t>() {
 }
 
 cpu_isa_t get_current_isa() {
-    if (mayiuse(cpu_isa_t::avx512_common))
-        return cpu_isa_t::avx512_common;
+    if (mayiuse(cpu_isa_t::avx512_core))
+        return cpu_isa_t::avx512_core;
     if (mayiuse(cpu_isa_t::avx2))
         return cpu_isa_t::avx2;
     return cpu_isa_t::sse41;

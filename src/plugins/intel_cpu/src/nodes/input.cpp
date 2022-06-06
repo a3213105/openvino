@@ -328,7 +328,7 @@ void Input::cloneBlobIfRequired() {
             if (!node
                 || TypeFromName(node->get_type_name()) != Type::FullyConnected)
                 continue;
-            if (mayiuse(cpu_isa_t::avx512_common)) {
+            if (mayiuse(cpu_isa_t::avx512_core)) {
                 if (size % 16)
                     return true;
             } else if (mayiuse(cpu_isa_t::avx)) {
