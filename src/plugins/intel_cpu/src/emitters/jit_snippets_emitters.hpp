@@ -104,12 +104,9 @@ private:
         int reg64_tmp_start { 8 }; // R8, R9, R10, R11, R12, R13, R14, R15 inputs+outputs+1
         const int64_t harness_num_dims = jcp.output_dims.size() - 1;
 
-        //Reg64 reg_indexes   { dnnl::impl::cpu::x64::abi_param1 };
-        //Reg64 reg_const_params { dnnl::impl::cpu::x64::abi_param2 };
-        //Reg64 reg_tmp_64 { dnnl::impl::cpu::x64::abi_not_param1};
-        Reg64 reg_indexes   { Reg64(dnnl::impl::cpu::x64::abi_param_regs[0]) };
-        Reg64 reg_const_params { Reg64(dnnl::impl::cpu::x64::abi_param_regs[1]) };
-        Reg64 reg_tmp_64 { Reg64(dnnl::impl::cpu::x64::abi_not_param_reg) };
+        Reg64 reg_indexes   { dnnl::impl::cpu::x64::abi_param_regs[0] };
+        Reg64 reg_const_params { dnnl::impl::cpu::x64::abi_param_regs[1] };
+        Xbyak::Reg64 reg_tmp_64 { dnnl::impl::cpu::x64::abi_not_param_reg };
 
         h->preamble();
 

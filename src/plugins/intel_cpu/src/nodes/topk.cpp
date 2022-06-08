@@ -215,8 +215,7 @@ private:
     Xbyak::Reg64 reg_sub_idx = reg_bubble_block_idx;  // blocked layout on channel
     // ========================================================================================================================
 
-    Vmm vmm_zero =
-        Vmm(0);  // vmm_zero represents Vmm(0) when isa is avx512_core, otherwise vmm_mask represents Vmm(0)
+    Vmm vmm_zero = Vmm(0); // vmm_zero represents Vmm(0) when isa is avx512_core, otherwise vmm_mask represents Vmm(0)
 
     const Xbyak::Opmask k_mask = Xbyak::Opmask(1);
     const int step = vlen / sizeof(float);
@@ -2169,20 +2168,15 @@ void TopK::prepareParams() {
         //           alg_cost_bitonic = (N / 4) * logN * (logN + 1)
         //           alg_cost_bubble = K * (K - 1) / 2 + (N - K) * K
         //           where, N = axis_dim, K = topk_k
-        //           the above two alg_costs are not the exact implementation costs, yet it's proper to use them to
-        //           decide which algorithm should be used for specific N and K.
-        const size_t count_xmm = 16;  // only 16 vector registers are valid in sse instructions even for avx512_core
-        if (top_k <= count_xmm / 2 - 2) {
-            algorithm = TopKAlgorithm::topk_bubble_sort;
-            bubble_inplace = topk_innermost && top_k == 1 ? false : true;
-        } else if ((layout == TopKLayoutType::topk_ncsp || layout == TopKLayoutType::topk_nspc) && topk_innermost) {
-            algorithm = TopKAlgorithm::topk_heap_sort;
-        } else {
-            auto log_axis_dim = log2(axis_dim);
-            size_t alg_cost_bitonic = static_cast<size_t>((axis_dim / 4.0f) * log_axis_dim * (log_axis_dim + 1));
-            size_t alg_cost_bubble = top_k * (top_k - 1) / 2 + (axis_dim - top_k) * top_k;
-            if (alg_cost_bitonic < alg_cost_bubble) {
-                algorithm = TopKAlgorithm::topk_bitonic_sort;
+        //           the above two alg_costs are not the exact implementation costs, yet it's proper to use them to decide
+        //           which algorithm should be used for specific N and K.
+        if (!isDynamicNode()) {
+            const size_t count_xmm = 16; // only 16 vector registers are valid in sse instructions even for avx512_core
+            if (top_k <= count_xmm / 2 - 2) {
+                algorithm = TopKAlgorithm::topk_bubble_sort;
+                bubble_inplace = topk_innermost && top_k == 1 ? false : true;
+            } else if ((layout == TopKLayoutType::topk_ncsp || layout == TopKLayoutType::topk_nspc) && topk_innermost) {
+                algorithm = TopKAlgorithm::topk_heap_sort;
             } else {
                 algorithm = TopKAlgorithm::topk_bubble_sort;
                 bubble_inplace = false;
