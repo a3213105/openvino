@@ -225,7 +225,7 @@ struct jit_uni_quantization_kernel : public jit_uni_quantize_kernel, public jit_
     };
 
     void generate() override {
-        do_dequantization = jqp_.op_type == Algorithm::FQCommon;
+        do_dequantization = jqp_.op_type == Algorithm::FQCommon || jqp_.op_type == Algorithm::FQRequantization;
         do_rounding = do_dequantization || jqp_.dst_prc == Precision::FP32;
 
         this->preamble();
@@ -1159,7 +1159,29 @@ FakeQuantize::FakeQuantize(const std::shared_ptr<ngraph::Node>& op, const dnnl::
                     quantizationOnly = false;
             }
 
-            algorithm = quantizationOnly ? Algorithm::FQQuantization : Algorithm::FQCommon;
+            bool isFakeQuantization = true;
+            bool isFakeQuantizationWithScale = true;
+            for (int i = 0; i < std::max(inputLowAxisSize, std::max(outputLowAxisSize, std::max(inputHighAxisSize, outputHighAxisSize))); i++) {
+                float il = inputLowData[isInputLowBroadcasted ? 0 : i];
+                float ol = outputLowData[isOutputLowBroadcasted ? 0 : i];
+                float ih = inputHighData[isInputHighBroadcasted ? 0 : i];
+                float oh = outputHighData[isOutputHighBroadcasted ? 0 : i];
+
+                isFakeQuantization = isFakeQuantization && il == ol && ih == oh;
+                isFakeQuantizationWithScale = isFakeQuantizationWithScale && ol != 0 && oh != 0 && (il / ol - ih / oh < 0.1f);
+            }
+
+            if (isFakeQuantizationWithScale) {
+                for (int i = 0; i < std::max(inputLowAxisSize, std::max(outputLowAxisSize, std::max(inputHighAxisSize, outputHighAxisSize))); i++) {
+                    float il = inputLowData[isInputLowBroadcasted ? 0 : i];
+                    float ol = outputLowData[isOutputLowBroadcasted ? 0 : i];
+
+                    fqScales.push_back(1 / (il / ol));
+                }
+            }
+
+            algorithm = quantizationOnly ? Algorithm::FQQuantization :
+                        (isFakeQuantization || isFakeQuantizationWithScale) ? Algorithm::FQCommon : Algorithm::FQRequantization;
         }
     } else {
         IE_THROW(NotImplemented) << errorMessage;
@@ -1728,18 +1750,16 @@ void FakeQuantize::initializePostOpData(const VectorDims &dims, const size_t buf
     if (getAlgorithm() == Algorithm::FQBinarization) {
         const auto realAxisSize = dims[dims.size() > 1 ? 1 : 0];
         const auto axisPaddedSize = rnd_up(realAxisSize, bufferAlignment);
-        if (!isPostOpDataInitialized) {
-            binarizationThresholds.resize(axisPaddedSize, 0);
-            binarizationOutputMask.resize(axisPaddedSize, 0);
+        binarizationThresholds.resize(axisPaddedSize, 0);
+        binarizationOutputMask.resize(axisPaddedSize, 0);
 
-            if (isInputLowBroadcasted) {
-                std::fill(binarizationThresholds.begin() + 1, binarizationThresholds.begin() + realAxisSize, binarizationThresholds[0]);
-                std::fill(binarizationThresholds.begin() + realAxisSize, binarizationThresholds.end(), 0);
-            }
-            if (isOutputHighBroadcasted) {
-                std::fill(binarizationOutputMask.begin() + 1, binarizationOutputMask.begin() + realAxisSize, binarizationOutputMask[0]);
-                std::fill(binarizationThresholds.begin() + realAxisSize, binarizationThresholds.end(), 0);
-            }
+        if (isInputLowBroadcasted) {
+            std::fill(binarizationThresholds.begin() + 1, binarizationThresholds.begin() + realAxisSize, binarizationThresholds[0]);
+            std::fill(binarizationThresholds.begin() + realAxisSize, binarizationThresholds.end(), 0);
+        }
+        if (isOutputHighBroadcasted) {
+            std::fill(binarizationOutputMask.begin() + 1, binarizationOutputMask.begin() + realAxisSize, binarizationOutputMask[0]);
+            std::fill(binarizationThresholds.begin() + realAxisSize, binarizationThresholds.end(), 0);
         }
     } else {
         if (cropLow.size() > 1)
@@ -1767,25 +1787,25 @@ void FakeQuantize::initializePostOpData(const VectorDims &dims, const size_t buf
 }
 
 void FakeQuantize::initializePostOpDataLegacy(const VectorDims &dims, const size_t bufferAlignment) {
-    if (isPostOpDataInitialized)
+    if (isLegacyPostOpDataInitialized)
         return;
 
     if (getAlgorithm() == Algorithm::FQBinarization) {
         const auto realAxisSize = dims[dims.size() > 1 ? 1 : 0];
         const auto axisPaddedSize = rnd_up(realAxisSize, bufferAlignment);
-        if (!isPostOpDataInitialized) {
-            binarizationThresholds.resize(axisPaddedSize, 0);
-            binarizationOutputMask.resize(axisPaddedSize, 0);
 
-            if (isInputLowBroadcasted) {
-                std::fill(binarizationThresholds.begin() + 1, binarizationThresholds.begin() + realAxisSize, binarizationThresholds[0]);
-                std::fill(binarizationThresholds.begin() + realAxisSize, binarizationThresholds.end(), 0);
-            }
-            if (isOutputHighBroadcasted) {
-                std::fill(binarizationOutputMask.begin() + 1, binarizationOutputMask.begin() + realAxisSize, binarizationOutputMask[0]);
-                std::fill(binarizationThresholds.begin() + realAxisSize, binarizationThresholds.end(), 0);
-            }
+        binarizationThresholds.resize(axisPaddedSize, 0);
+        binarizationOutputMask.resize(axisPaddedSize, 0);
+
+        if (isInputLowBroadcasted) {
+            std::fill(binarizationThresholds.begin() + 1, binarizationThresholds.begin() + realAxisSize, binarizationThresholds[0]);
+            std::fill(binarizationThresholds.begin() + realAxisSize, binarizationThresholds.end(), 0);
         }
+        if (isOutputHighBroadcasted) {
+            std::fill(binarizationOutputMask.begin() + 1, binarizationOutputMask.begin() + realAxisSize, binarizationOutputMask[0]);
+            std::fill(binarizationThresholds.begin() + realAxisSize, binarizationThresholds.end(), 0);
+        }
+
     } else {
         quantizationData.insert(quantizationData.end(), cropLow.begin(), cropLow.end());
         quantizationData.insert(quantizationData.end(), cropHigh.begin(), cropHigh.end());
@@ -1799,7 +1819,7 @@ void FakeQuantize::initializePostOpDataLegacy(const VectorDims &dims, const size
         quantizationData.resize(quantizationDataSize + bufferPaddingSize, 0);
     }
 
-    isPostOpDataInitialized = true;
+    isLegacyPostOpDataInitialized = true;
 }
 
 void FakeQuantize::appendMemory(const size_t dataSize, const void *data, MemoryPtr &memPtr, std::vector<MemoryPtr>& postOpsMem) {
@@ -1828,8 +1848,8 @@ void FakeQuantize::appendPostOpsImpl(dnnl::post_ops& ops, const VectorDims &post
     if (getAlgorithm() == Algorithm::FQBinarization) {
         ops.append_binarization(dnnl::algorithm::binarization_depthwise, (const float*)&binarizationThresholds[0], (const float*)&binarizationOutputMask[0]);
     } else {
-        dnnl::algorithm alg = getAlgorithm() == Algorithm::FQCommon ? dnnl::algorithm::quantization_quantize_dequantize :
-                                                                        dnnl::algorithm::quantization_quantize;
+        dnnl::algorithm alg = getAlgorithm() == Algorithm::FQQuantization ? dnnl::algorithm::quantization_quantize :
+                                                                            dnnl::algorithm::quantization_quantize_dequantize;
 
         std::array<bool, 6> per_channel = {cropLowSize > 1, cropHighSize > 1, inputScaleSize > 1,
                                            inputShiftSize > 1, outputScaleSize > 1, outputShiftSize > 1};
@@ -1884,8 +1904,66 @@ void FakeQuantize::appendBinPostOps(dnnl::post_ops& ops, const VectorDims& postO
         }
     };
 
-    dnnl::algorithm alg = getAlgorithm() == Algorithm::FQCommon ? dnnl::algorithm::quantization_quantize_dequantize :
-                                                                    dnnl::algorithm::quantization_quantize;
+    dnnl::algorithm alg = getAlgorithm() == Algorithm::FQCommon || getAlgorithm() == Algorithm::FQRequantization
+                                ? dnnl::algorithm::quantization_quantize_dequantize
+                                : dnnl::algorithm::quantization_quantize;
+
+    appendBinary(dnnl::algorithm::binary_min, cropHighSize, cropHighMemory, &cropHighData.shifts_[0]);
+    appendBinary(dnnl::algorithm::binary_max, cropLowSize, cropLowMemory, &cropLowData.shifts_[0]);
+    appendBinary(dnnl::algorithm::binary_mul, inputScaleSize, inputScaleMemory, &inputScaleData.scales_[0]);
+    appendBinary(dnnl::algorithm::binary_add, inputShiftSize, inputShiftMemory, &inputShiftData.shifts_[0]);
+    if (alg == dnnl::algorithm::quantization_quantize_dequantize) {
+        ops.append_eltwise(1.0f, dnnl::algorithm::eltwise_round_half_to_even, 0, 0);
+    }
+    appendBinary(dnnl::algorithm::binary_mul, outputScaleSize, outputScaleMemory, &outputScaleData.scales_[0]);
+    appendBinary(dnnl::algorithm::binary_add, outputShiftSize, outputShiftMemory, &outputShiftData.shifts_[0]);
+}
+
+void FakeQuantize::appendBinPostOpsOptimized(dnnl::post_ops& ops, const VectorDims &postOpDims, std::vector<MemoryPtr>& binaryPostOpsMem,
+                                             bool isLastPostOp, dnnl::memory::data_type outDataType) {
+    static const size_t bufferAlignment = 1;
+
+    initializePostOpData(postOpDims, bufferAlignment);
+
+    VectorDims broadcastBinaryShape(postOpDims.size(), 1);
+
+    auto appendBinary = [&](const dnnl::algorithm alg, const size_t dataSize, MemoryPtr &memPtr, const void *data) {
+        DnnlBlockedMemoryDesc memoryDesc(Precision::FP32, dataSize == 1 ? Shape(broadcastBinaryShape) : Shape(postOpDims));
+        ops.append_binary(alg, memoryDesc.getDnnlDesc());
+
+        if (!memPtr) {
+            memPtr.reset(new Memory(getEngine()));
+            memPtr->Create(memoryDesc, data);
+
+            binaryPostOpsMem.push_back(memPtr);
+        }
+    };
+
+    dnnl::algorithm alg = getAlgorithm() == Algorithm::FQCommon || getAlgorithm() == Algorithm::FQRequantization
+                                ? dnnl::algorithm::quantization_quantize_dequantize
+                                : dnnl::algorithm::quantization_quantize;
+
+    if (isLastPostOp &&
+        outDataType == memory::data_type::u8 &&
+        getAlgorithm() == Algorithm::FQQuantization
+        /*levels == 256*/) {
+        auto &cl = getCropLow();
+        auto &isc = getInputScale();
+        auto &ish = getInputShift();
+
+        if (std::all_of(cl.cbegin(), cl.cend(), [](float val) { return val == 0.0f; }) &&
+            std::all_of(isc.cbegin(), isc.cend(), [&](float val) { return val == isc[0]; }) &&
+            std::all_of(ish.cbegin(), ish.cend(), [&](float val) { return val == ish[0]; })) {
+            ops.append_eltwise(1.0f, dnnl::algorithm::eltwise_linear, isc[0], ish[0]);
+
+            return;
+        } else if (std::all_of(cl.cbegin(), cl.cend(), [](float val) { return val == 0.0f; })) {
+            appendBinary(dnnl::algorithm::binary_mul, inputScaleSize, inputScaleMemory, &inputScaleData.scales_[0]);
+            appendBinary(dnnl::algorithm::binary_add, inputShiftSize, inputShiftMemory, &inputShiftData.shifts_[0]);
+
+            return;
+        }
+    }
 
     appendBinary(dnnl::algorithm::binary_min, cropHighSize, cropHighMemory, &cropHighData.shifts_[0]);
     appendBinary(dnnl::algorithm::binary_max, cropLowSize, cropLowMemory, &cropLowData.shifts_[0]);
