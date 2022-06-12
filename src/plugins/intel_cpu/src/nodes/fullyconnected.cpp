@@ -421,22 +421,28 @@ bool FullyConnected::created() const {
 const std::vector<impl_desc_type>& FullyConnected::getPrimitivesPriority() {
     std::vector<impl_desc_type> priorities = {
             impl_desc_type::unknown,
-///////////////////////
+
+            impl_desc_type::brgemm_avx512_amx,
+
             impl_desc_type::brgconv_avx512_amx_1x1,
             impl_desc_type::brgconv_avx512_amx,
+
             impl_desc_type::jit_avx512_amx_dw,
             impl_desc_type::jit_avx512_amx_1x1,
             impl_desc_type::jit_avx512_amx,
+
             impl_desc_type::gemm_avx512_amx,
-            impl_desc_type::brgemm_avx512_amx,
+
+            impl_desc_type::brgemm_avx512_vnni,
 
             impl_desc_type::brgconv_avx512_vnni_1x1,
             impl_desc_type::brgconv_avx512_vnni,
+
             impl_desc_type::jit_avx512_vnni_dw,
             impl_desc_type::jit_avx512_vnni_1x1,
             impl_desc_type::jit_avx512_vnni,
+
             impl_desc_type::gemm_avx512_vnni,
-            impl_desc_type::brgemm_avx512_vnni,
 
             impl_desc_type::gemm_avx512_core,
             impl_desc_type::jit_avx512_core_dw,
@@ -449,7 +455,7 @@ const std::vector<impl_desc_type>& FullyConnected::getPrimitivesPriority() {
 
             impl_desc_type::brgconv_avx512_1x1,
             impl_desc_type::brgconv_avx512,
-/////////////////////
+            impl_desc_type::brgemm_avx512,
             impl_desc_type::gemm_blas,
             impl_desc_type::gemm_avx512,
             impl_desc_type::jit_avx512_dw,
@@ -478,14 +484,6 @@ const std::vector<impl_desc_type>& FullyConnected::getPrimitivesPriority() {
             impl_desc_type::jit_uni,
             impl_desc_type::ref,
     };
-
-    // WA: brgemm kernel contains bug that may lead to segfault in case of added post-ops and unaligned number of channels
-    const size_t simdWidth = 16;
-    auto inputDims = getInputShapeAtPort(DATA_ID).getDims();
-    if (inputDims.back() != Shape::UNDEFINED_DIM && (inputDims.back() < simdWidth || inputDims.back() % simdWidth == 0)) {
-        priorities.insert(priorities.begin() + 1, impl_desc_type::brgemm_avx512_amx);
-        priorities.insert(priorities.begin() + 2, impl_desc_type::brgemm_avx512);
-    }
 
     for (const auto& impl : priorities) {
         if (std::find(implPriorities.begin(), implPriorities.end(), impl) == implPriorities.end())
