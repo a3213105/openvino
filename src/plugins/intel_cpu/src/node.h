@@ -755,6 +755,7 @@ protected:
         supportedPrimitiveDescriptors.push_back({config, implType});
     }
 
+    void prepareMemory(const std::vector<DnnlMemoryDescPtr>& intDescs);
     void prepareMemory(dnnl::primitive_desc_iterator& itpd);
 
     bool isDynamic = false;
