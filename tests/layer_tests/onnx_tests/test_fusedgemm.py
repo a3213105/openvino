@@ -38,15 +38,17 @@ class TestFusedGemm(OnnxRuntimeLayerTest):
         extended_shape2 = np.concatenate([np.ones(max_len - len(shapeB)), shapeB], axis=0)
         output_shape = np.concatenate(
             [np.maximum(*[extended_shape1[0:-2], extended_shape2[0:-2]]), [shapeA[-2], shapeB[-1]]],
-            axis=0).astype(np.int).tolist()
+            axis=0).astype(int).tolist()
+
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, shapeA)
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, output_shape)
 
         _shapeB = shapeB.copy()
         if trans_b:
             _shapeB.reverse()
-        const1 = np.random.ranf(_shapeB).astype(np.float)
-        const2 = np.random.ranf(shapeC).astype(np.float)
+
+        const1 = np.random.ranf(_shapeB).astype(float)
+        const2 = np.random.ranf(shapeC).astype(float)
 
         nodes = list()
         node_const1_def = onnx.helper.make_node(
@@ -125,7 +127,6 @@ class TestFusedGemm(OnnxRuntimeLayerTest):
 
 
     test_data = [
-  #      dict(shapeA=[3, 6], shapeB=[6, 4], shapeC=[3, 4], activation='Relu', activation_alpha=0.1, activation_beta=0.1, activation_gamma=0.1),
         dict(shapeA=[3, 6], shapeB=[6, 4], shapeC=[3, 4], activation='LeakyRelu', activation_alpha=0.01, activation_beta=None, activation_gamma=None),
   #      dict(shapeA=[3, 6], shapeB=[6, 4], shapeC=[3, 4], activation='Relu', activation_alpha=None, activation_beta=None, activation_gamma=None),
     ]
@@ -135,10 +136,10 @@ class TestFusedGemm(OnnxRuntimeLayerTest):
     ]
 
     @pytest.mark.parametrize("params", test_data)
-    @pytest.mark.parametrize("alpha", [1.0])
-    @pytest.mark.parametrize("beta", [1.0])
+    @pytest.mark.parametrize("alpha", [0.1,2.0])
+    @pytest.mark.parametrize("beta", [0.1,2.0])
     @pytest.mark.parametrize("trans_a", [None])
-    @pytest.mark.parametrize("trans_b", [None])
+    @pytest.mark.parametrize("trans_b", [None, 1])
     @pytest.mark.parametrize("opset", [None])
     @pytest.mark.nightly
     @pytest.mark.precommit
