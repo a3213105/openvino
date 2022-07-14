@@ -25,14 +25,6 @@ public:
 
     static bool isSupportedOperation(const std::shared_ptr<const ngraph::Node>& op, std::string& errorMessage) noexcept;
 
-    bool needShapeInfer() const override;
-    void executeDynamicImpl(dnnl::stream strm) override;
-    std::vector<VectorDims> shapeInfer() const override;
-    bool needPrepareParams() const override {
-        return inputShapesModified();
-    };
-    void prepareParams() override;
-
 private:
     struct ReverseSequenceExecutor {
         ReverseSequenceExecutor(const VectorDims& dataDims,

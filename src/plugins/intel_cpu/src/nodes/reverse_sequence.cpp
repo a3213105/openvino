@@ -184,44 +184,6 @@ void ReverseSequence::execute(dnnl::stream strm) {
                                getChildEdgeAt(0)->getMemoryPtr());
 }
 
-bool ReverseSequence::needShapeInfer() const {
-    if (inputShapesModified()) {
-        return true;
-    }
-
-    if (src_dims.empty()) {
-        return true;
-    } else {
-        auto new_src_dims = getParentEdgesAtPort(REVERSESEQUENCE_DATA)[0]->getMemory().getStaticDims();
-        if (src_dims.size() != new_src_dims.size())
-            return true;
-        for (int i = 0; i < src_dims.size(); i++) {
-            if (src_dims[i] != new_src_dims[i])
-                return true;
-        }
-    }
-    return false;
-}
-
-void ReverseSequence::prepareParams() {
-    src_dims = getParentEdgesAtPort(REVERSESEQUENCE_DATA)[0]->getMemory().getStaticDims();
-    srcStrides.resize(src_dims.size());
-    srcStrides[srcStrides.size() - 1] = 1;
-    for (int i = srcStrides.size() - 2; i >= 0; i--) {
-        srcStrides[i] = srcStrides[i + 1] * src_dims[i + 1];
-    }
-
-    work_amount_dst = srcStrides[0] * src_dims[0];
-}
-
-std::vector<VectorDims> ReverseSequence::shapeInfer() const {
-    return std::vector<VectorDims>{getParentEdgesAtPort(REVERSESEQUENCE_DATA)[0]->getMemory().getStaticDims()};
-}
-
-void ReverseSequence::executeDynamicImpl(dnnl::stream strm) {
-    execute(strm);
-}
-
 bool ReverseSequence::created() const {
     return getType() == Type::ReverseSequence;
 }
