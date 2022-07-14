@@ -424,7 +424,6 @@ static void show_usage() {
     std::cout << "    -dump_config              " << dump_config_message << std::endl;
     std::cout << "    -load_config              " << load_config_message << std::endl;
     std::cout << "    -infer_precision \"<element type>\"" << inference_precision_message << std::endl;
-<<<<<<< HEAD
     std::cout << "    -ip                          <value>     " << inputs_precision_message << std::endl;
     std::cout << "    -op                          <value>     " << outputs_precision_message << std::endl;
     std::cout << "    -iop                        \"<value>\"    " << iop_message << std::endl;
@@ -432,13 +431,5 @@ static void show_usage() {
     std::cout << "    -imean                     " << input_image_mean_message << std::endl;
     std::cout << "    -inference_only              " << inference_only_message << std::endl;
     std::cout << "    -enforcebf16 \"<true/false>\"       " << enforce_bf16_message << std::endl;
-=======
-    std::cout << "    -ip                       <value>     " << inputs_precision_message << std::endl;
-    std::cout << "    -op                       <value>     " << outputs_precision_message << std::endl;
-    std::cout << "    -iop                      \"<value>\"    " << iop_message << std::endl;
-    std::cout << "    -iscale                   " << input_image_scale_message << std::endl;
-    std::cout << "    -imean                    " << input_image_mean_message << std::endl;
-    std::cout << "    -inference_only           " << inference_only_message << std::endl;
     std::cout << "    -dopt                     " << denormals_optimization_message << std::endl;
->>>>>>> e718e51a85cc0391193876137b109dbbbe9399bf
 }
