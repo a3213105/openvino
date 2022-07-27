@@ -383,10 +383,6 @@ int main(int argc, char* argv[]) {
                 device_config.emplace(ov::affinity(fix_pin_option(FLAGS_pin)));
             }
 
-            if (isFlagSetInCommandLine("dopt")) {
-                device_config.emplace(ov::denormals_optimization(true));
-            }
-
             if (device.find("CPU") != std::string::npos) {  // CPU supports few special performance-oriented keys
                 // limit threading for CPU portion of inference
                 if (!isFlagSetInCommandLine("pin")) {
@@ -400,10 +396,6 @@ int main(int argc, char* argv[]) {
                 }
                 if (isFlagSetInCommandLine("enforcebf16"))
                     device_config[CONFIG_KEY(ENFORCE_BF16)] = FLAGS_enforcebf16 ? CONFIG_VALUE(YES) : CONFIG_VALUE(NO);
-                // use experimental setting
-                if (isFlagSetInCommandLine("cpu_experimental")) {
-                    device_config.emplace(ov::cpu_experimental(FLAGS_cpu_experimental));
-                }
                 // for CPU execution, more throughput-oriented execution via streams
                 setThroughputStreams();
                 set_infer_precision();

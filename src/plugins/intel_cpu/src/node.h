@@ -554,10 +554,6 @@ public:
         algorithm = alg;
     }
 
-    void setCPUExperimental(const std::set<std::string>& experimental) {
-        cpuExperimental = experimental;
-    }
-
     virtual bool canFuse(const NodePtr& node) const {
         return false;
     }
@@ -680,8 +676,6 @@ protected:
     WeightsSharing::Ptr weightCache;
 
     Algorithm algorithm = Algorithm::Default;
-
-    std::set<std::string> cpuExperimental;
 
     bool isInQuantizedGraph = false;
 
