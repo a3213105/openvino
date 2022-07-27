@@ -39,14 +39,12 @@ class TestFusedGemm(OnnxRuntimeLayerTest):
         output_shape = np.concatenate(
             [np.maximum(*[extended_shape1[0:-2], extended_shape2[0:-2]]), [shapeA[-2], shapeB[-1]]],
             axis=0).astype(int).tolist()
-
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, shapeA)
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, output_shape)
 
         _shapeB = shapeB.copy()
         if trans_b:
             _shapeB.reverse()
-
         const1 = np.random.ranf(_shapeB).astype(float)
         const2 = np.random.ranf(shapeC).astype(float)
 
