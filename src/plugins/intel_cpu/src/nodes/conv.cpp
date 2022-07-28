@@ -220,6 +220,7 @@ bool Convolution::isSupportedOperation(const std::shared_ptr<const ngraph::Node>
     return true;
 }
 
+static int conv_id = 0;
 Convolution::Convolution(const std::shared_ptr<ngraph::Node>& op, const dnnl::engine& eng, WeightsSharing::Ptr &cache)
         : Node(op, eng, cache), withBiases(false), withSum(false), withDWConv(false),
           isGrouped(false), dw_conv_oc(0), dw_conv_ih(0), dw_conv_iw(0), dw_conv_in_dt(memory::data_type::undef),
@@ -280,6 +281,9 @@ Convolution::Convolution(const std::shared_ptr<ngraph::Node>& op, const dnnl::en
         autoPadding = one_of(groupConvolutionOp->get_auto_pad(), ov::op::PadType::SAME_UPPER, ov::op::PadType::SAME_LOWER);
     }
 
+    self_id = conv_id;
+    conv_id += 1;
+
     // Due to performance issue, brgconv will only be enabled by default:
     // 1, support amx
     // 2, static shape(dynamic shape may change weights layout if the input shape changes and cause performance issue: 86948)
@@ -319,11 +323,11 @@ InferenceEngine::Precision Convolution::fusedEltwisePrecision(const NodePtr& fus
 const std::vector<impl_desc_type>& Convolution::getPrimitivesPriority() {
     std::vector<impl_desc_type> priorities = {
         impl_desc_type::unknown,
-        impl_desc_type::brgconv_avx512_amx_1x1,
         impl_desc_type::brgconv_avx512_amx,
-        impl_desc_type::jit_avx512_amx_dw,
-        impl_desc_type::jit_avx512_amx_1x1,
+        impl_desc_type::brgconv_avx512_amx_1x1,
         impl_desc_type::jit_avx512_amx,
+        impl_desc_type::jit_avx512_amx_1x1,
+        impl_desc_type::jit_avx512_amx_dw,
         impl_desc_type::brgconv_avx512_1x1,
         impl_desc_type::brgconv_avx512,
         impl_desc_type::jit_uni_dw,
@@ -505,6 +509,10 @@ void Convolution::getSupportedDescriptors() {
         outputDataType = (getOriginalOutputPrecisionAtPort(0) == Precision::BF16
                 && !(isDepthWise() && ndims == 5)) ? memory::data_type::bf16 : memory::data_type::f32;
         eltwisePrecision = Precision::FP32;
+        if (self_id == 0 || isGrouped) {
+            inputDataType = memory::data_type::f32;
+            outputDataType = memory::data_type::f32;
+        }
         for (int i = 0; i < fusedWith.size(); i++) {
             if (fusedWith[i]->getAlgorithm() == Algorithm::EltwiseAdd) {
                 auto* eltwiseNode = dynamic_cast<Eltwise *>(fusedWith[i].get());

@@ -1807,6 +1807,8 @@ void Reduce::initSupportedPrimitiveDescriptors() {
                        algorithm != Algorithm::ReduceMin && algorithm != Algorithm::ReduceMax) {
                             output_prec = Precision::FP32;
             }
+            output_prec = Precision::FP32;
+            input_prec = Precision::FP32;
         }
     }
 

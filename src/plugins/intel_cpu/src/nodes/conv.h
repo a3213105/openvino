@@ -155,6 +155,8 @@ private:
 
     dnnl::memory::data_type outputDataType;
     InferenceEngine::Precision sumPrc = InferenceEngine::Precision::UNSPECIFIED;
+
+    int self_id;
 };
 
 }   // namespace node
