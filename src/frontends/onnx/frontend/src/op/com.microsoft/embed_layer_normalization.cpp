@@ -5,6 +5,7 @@
 #include "op/com.microsoft/embed_layer_normalization.hpp"
 
 #include "default_opset.hpp"
+#include "ngraph/log.hpp"
 #include "onnx_import/core/null_node.hpp"
 
 namespace ngraph {
@@ -15,7 +16,7 @@ OutputVector embed_layer_normalization(const Node& node) {
     auto nodes = node.get_ng_inputs();
     auto num_nodes = nodes.size();
 
-    NGRAPH_CHECK(num_nodes >= 7 && num_nodes <= 8,
+    NGRAPH_CHECK(num_nodes >= 7 && num_nodes <= 9,
                  "EmbedLayerNormalization takes 7 or 8 inputs. Provided " + std::to_string(num_nodes));
     NGRAPH_CHECK(nodes[0].get_element_type() == element::i32, "input_ids must have int32 type");
 
@@ -27,15 +28,47 @@ OutputVector embed_layer_normalization(const Node& node) {
     const auto& gamma = nodes[5];
     const auto& beta = nodes[6];
 
-    auto zero = default_opset::Constant::create(element::i32, Shape{1}, {0});
+    const auto zero = default_opset::Constant::create(element::i32, Shape{1}, {0});
     std::shared_ptr<ngraph::Node> input = std::make_shared<default_opset::Gather>(word_embeddings, input_ids, zero, 0);
-    input = std::make_shared<default_opset::Add>(input, position_embeddings);
+
+    //    input = std::make_shared<default_opset::Add>(input, position_embeddings);
+    // add position embeddings
+    if (num_nodes > 8 && !ngraph::op::is_null(nodes[8])) {
+        const auto& position_ids = nodes[8];
+        const auto gathered_position_embeddings =
+            std::make_shared<default_opset::Gather>(position_embeddings, position_ids, zero, 0);
+        input = std::make_shared<default_opset::Add>(input, gathered_position_embeddings);
+    } else {
+        // shapeof input_ids
+        const auto one = default_opset::Constant::create(element::i32, Shape{1}, {1});
+        const auto input_ids_shape = std::make_shared<default_opset::ShapeOf>(input_ids, element::i32);
+        // NGRAPH_WARN << "input_ids_shape=" << input_ids_shape;
+        const auto seqlen = std::make_shared<default_opset::Gather>(input_ids_shape, one, zero, 0);
+        // NGRAPH_WARN << "seqlen=" << seqlen;
+
+        // const auto position_embeddings_shape =
+        //     std::make_shared<default_opset::ShapeOf>(position_embeddings, element::i32);
+        // const auto hidden_size = std::make_shared<default_opset::Gather>(position_embeddings_shape, one, zero, 0);
+
+        // auto bin_mask = std::make_shared<default_opset::Range>(zero, hidden_size, one, element::i32);
+
+        // auto target_shape = std::make_shared<default_opset::Concat>(NodeVector{seqlen, hidden_size}, 0);
+        // bin_mask = std::make_shared<default_opset::Broadcast>(bin_mask, target_shape);
+
+        // const auto gathered_position_embeddings =
+        //     std::make_shared<default_opset::Gather>(position_embeddings, bin_mask, zero, 0);
+
+        const auto gathered_position_embeddings =
+            std::make_shared<default_opset::Slice>(position_embeddings, zero, seqlen, one, zero);
+
+        input = std::make_shared<default_opset::Add>(input, gathered_position_embeddings);
+    }
 
     // add segment embeddings if available
     if (!ngraph::op::is_null(segment_ids)) {
         NGRAPH_CHECK(!ngraph::op::is_null(segment_embeddings),
                      "segment_ids provided, but segment_embedding input is missing");
-        NGRAPH_CHECK(nodes[1].get_element_type() == element::i32, "segment_ids must have int32 type");
+        NGRAPH_CHECK(segment_ids.get_element_type() == element::i32, "segment_ids must have int32 type");
         auto gathered_segment_embeddings =
             std::make_shared<default_opset::Gather>(segment_embeddings, segment_ids, zero, 0);
         input = std::make_shared<default_opset::Add>(input, gathered_segment_embeddings);
