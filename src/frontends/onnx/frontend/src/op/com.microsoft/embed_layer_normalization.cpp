@@ -5,6 +5,7 @@
 #include "op/com.microsoft/embed_layer_normalization.hpp"
 
 #include "default_opset.hpp"
+#include "ngraph/log.hpp"
 #include "onnx_import/core/null_node.hpp"
 
 namespace ngraph {
@@ -52,11 +53,12 @@ OutputVector embed_layer_normalization(const Node& node) {
             std::make_shared<default_opset::Slice>(position_embeddings, zero, seqlen, one, zero);
         input = std::make_shared<default_opset::Add>(input, gathered_position_embeddings);
     }
+
     // add segment embeddings if available
     if (!ngraph::op::is_null(segment_ids)) {
         NGRAPH_CHECK(!ngraph::op::is_null(segment_embeddings),
                      "segment_ids provided, but segment_embedding input is missing");
-        NGRAPH_CHECK(nodes[1].get_element_type() == element::i32, "segment_ids must have int32 type");
+        NGRAPH_CHECK(segment_ids.get_element_type() == element::i32, "segment_ids must have int32 type");
         auto gathered_segment_embeddings =
             std::make_shared<default_opset::Gather>(segment_embeddings, segment_ids, zero, 0);
         input = std::make_shared<default_opset::Add>(input, gathered_segment_embeddings);

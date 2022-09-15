@@ -114,6 +114,9 @@ void Convert::initSupportedPrimitiveDescriptors() {
         auto insPrecision = getOriginalInputPrecisionAtPort(0);
         const Shape& outputShape = getOutputShapeAtPort(0);
         auto outPrecision = getOriginalOutputPrecisionAtPort(0);
+        if (outPrecision == Precision::BF16) {
+            outPrecision = Precision::FP32;
+        }
 
         config.inConfs.push_back(dataIn);
         config.outConfs.push_back(dataConfigOut);
