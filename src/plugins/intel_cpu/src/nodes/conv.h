@@ -71,6 +71,12 @@ protected:
     void addFusedNode(const NodePtr &fusingNode) override;
     const std::vector<impl_desc_type>& getPrimitivesPriority() override;
 
+    std::string getDNNlString() override {
+        if (execPtr)
+            return  execPtr->getDNNlString();
+        return Node::getDNNlString();
+    }
+
 private:
     class FusedSubgraph;
     using FusedSubgraphPtr = std::shared_ptr<FusedSubgraph>;
@@ -151,6 +157,8 @@ private:
 
     dnnl::memory::data_type outputDataType;
     InferenceEngine::Precision sumPrc = InferenceEngine::Precision::UNSPECIFIED;
+
+    int self_id;
 };
 
 }   // namespace node
