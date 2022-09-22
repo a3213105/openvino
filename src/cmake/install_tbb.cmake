@@ -78,13 +78,12 @@ endif()
 # - custom TBB provided by users, needs to be a part of wheel packages
 # - system TBB also needs to be a part of wheel packages
 if(THREADING MATCHES "^(TBB|TBB_AUTO)$" AND
-       ( (DEFINED TBB AND TBB MATCHES ${TEMP}) OR
+       ( (DEFINED TBBROOT AND TBBROOT MATCHES ${TEMP}) OR
          (DEFINED TBBROOT OR DEFINED TBB_DIR OR DEFINED ENV{TBBROOT} OR
           DEFINED ENV{TBB_DIR}) OR ENABLE_SYSTEM_TBB ) )
     ie_cpack_add_component(tbb HIDDEN)
     list(APPEND core_components tbb)
-
-    if(TBB MATCHES ${TEMP})
+    if(TBBROOT MATCHES ${TEMP})
         set(tbb_downloaded ON)
     elseif(DEFINED ENV{TBBROOT} OR DEFINED ENV{TBB_DIR} OR
            DEFINED TBBROOT OR DEFINED TBB_DIR)
@@ -113,7 +112,7 @@ if(THREADING MATCHES "^(TBB|TBB_AUTO)$" AND
             # grab all tbb files matching pattern
             file(GLOB tbb_files "${dir}/${name_we}.*")
             foreach(tbb_file IN LISTS tbb_files)
-                if(tbb_file MATCHES "^.*\.${CMAKE_SHARED_LIBRARY_SUFFIX}(\.[0-9]+)+$")
+                if(tbb_file MATCHES "^.*\.${CMAKE_SHARED_LIBRARY_SUFFIX}(\.[0-9]+)*$")
                     # since the setup.py for pip installs tbb component
                     # explicitly, it's OK to put EXCLUDE_FROM_ALL to such component
                     # to ignore from IRC / apt / yum distribution;
@@ -185,16 +184,16 @@ if(THREADING MATCHES "^(TBB|TBB_AUTO)$" AND
         set(IE_TBB_DIR_INSTALL "runtime/3rdparty/tbb/")
 
         if(WIN32)
-            install(DIRECTORY "${TBB}/bin"
+            install(DIRECTORY "${TBBROOT}/bin"
                     DESTINATION "${IE_TBB_DIR_INSTALL}"
                     COMPONENT tbb)
         else()
-            install(DIRECTORY "${TBB}/lib"
+            install(DIRECTORY "${TBBROOT}/lib"
                     DESTINATION "${IE_TBB_DIR_INSTALL}"
                     COMPONENT tbb)
         endif()
 
-        install(FILES "${TBB}/LICENSE"
+        install(FILES "${TBBROOT}/LICENSE"
                 DESTINATION "${IE_TBB_DIR_INSTALL}"
                 COMPONENT tbb)
 
@@ -205,17 +204,17 @@ if(THREADING MATCHES "^(TBB|TBB_AUTO)$" AND
                                DEPENDS tbb)
         list(APPEND core_dev_components tbb_dev)
 
-        install(FILES "${TBB}/cmake/TBBConfig.cmake"
-                      "${TBB}/cmake/TBBConfigVersion.cmake"
+        install(FILES "${TBBROOT}/cmake/TBBConfig.cmake"
+                      "${TBBROOT}/cmake/TBBConfigVersion.cmake"
                 DESTINATION "${IE_TBB_DIR_INSTALL}/cmake"
                 COMPONENT tbb_dev)
-        install(DIRECTORY "${TBB}/include"
+        install(DIRECTORY "${TBBROOT}/include"
                 DESTINATION "${IE_TBB_DIR_INSTALL}"
                 COMPONENT tbb_dev)
 
         if(WIN32)
             # .lib files are needed only for Windows
-            install(DIRECTORY "${TBB}/lib"
+            install(DIRECTORY "${TBBROOT}/lib"
                     DESTINATION "${IE_TBB_DIR_INSTALL}"
                     COMPONENT tbb_dev)
         endif()
@@ -233,14 +232,14 @@ endif()
 if(install_tbbbind)
     set(IE_TBBBIND_DIR_INSTALL "runtime/3rdparty/tbb_bind_2_5")
 
-    install(DIRECTORY "${TBBBIND_2_5}/lib"
+    install(DIRECTORY "${TBBBIND_2_5_ROOT}/lib"
             DESTINATION "${IE_TBBBIND_DIR_INSTALL}"
             COMPONENT tbb)
-    install(FILES "${TBBBIND_2_5}/LICENSE"
+    install(FILES "${TBBBIND_2_5_ROOT}/LICENSE"
             DESTINATION "${IE_TBBBIND_DIR_INSTALL}"
             COMPONENT tbb)
 
-    install(FILES "${TBBBIND_2_5}/cmake/TBBBIND_2_5Config.cmake"
+    install(FILES "${TBBBIND_2_5_ROOT}/cmake/TBBBIND_2_5Config.cmake"
             DESTINATION "${IE_TBBBIND_DIR_INSTALL}/cmake"
             COMPONENT tbb_dev)
 endif()
