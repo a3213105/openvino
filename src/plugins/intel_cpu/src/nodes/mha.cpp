@@ -34,7 +34,7 @@ template <cpu_isa_t isa>
 struct jit_mul_add_softmax_kernel : public jit_uni_mul_add_softmax_kernel, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_mul_add_softmax_kernel)
 
-    explicit jit_mul_add_softmax_kernel(const jit_mul_add_softmax_compile_params& jcp) : jit_uni_mul_add_softmax_kernel(jcp), jit_generator() {
+    explicit jit_mul_add_softmax_kernel(const jit_mul_add_softmax_compile_params& jcp) : jit_uni_mul_add_softmax_kernel(jcp), jit_generator(jit_name()) {
         exp_emitter = std::make_shared<jit_dnnl_aux_emitter>(this, isa, dnnl_eltwise_exp, 0.f, 0.f);
 
         vec_size = dnnl::impl::cpu::x64::cpu_isa_traits<isa>::vlen / sizeof(float);
@@ -357,7 +357,7 @@ template <cpu_isa_t isa>
 struct jit_convert_reorder_kernel : public jit_uni_convert_reorder_kernel, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_convert_reorder_kernel)
 
-    explicit jit_convert_reorder_kernel(const jit_convert_reorder_compile_params& jcp) : jit_uni_convert_reorder_kernel(jcp), jit_generator() {
+    explicit jit_convert_reorder_kernel(const jit_convert_reorder_compile_params& jcp) : jit_uni_convert_reorder_kernel(jcp), jit_generator(jit_name()) {
         vec_size = dnnl::impl::cpu::x64::cpu_isa_traits<isa>::vlen / sizeof(float);
     }
     virtual ~jit_convert_reorder_kernel() {}
@@ -503,7 +503,7 @@ template <cpu_isa_t isa>
 struct jit_convert_transpose_kernel : public jit_uni_convert_transpose_kernel, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_convert_transpose_kernel)
 
-    explicit jit_convert_transpose_kernel(const jit_convert_transpose_compile_params& jcp) : jit_uni_convert_transpose_kernel(jcp), jit_generator() {
+    explicit jit_convert_transpose_kernel(const jit_convert_transpose_compile_params& jcp) : jit_uni_convert_transpose_kernel(jcp), jit_generator(jit_name()) {
         interm_prc = jcp_.with_scales ? Precision(Precision::FP32) : jcp_.src_prc;
         vec_size = dnnl::impl::cpu::x64::cpu_isa_traits<isa>::vlen / interm_prc.size();
     }

@@ -586,6 +586,7 @@ private:
 }   // namespace internal
 
 struct jit_kernel : public dnnl::impl::cpu::x64::jit_generator {
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_kernel_T)
     using reg_indices = std::vector<int>;
     template<typename T>
     using reg_traits = internal::reg_traits<T>;
