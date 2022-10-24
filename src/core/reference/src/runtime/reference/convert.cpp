@@ -23,12 +23,12 @@ void jit_convert_vec<uint8_t, float16>(jit::Generator& gen, const Xbyak::RegExp&
     auto f16vec = gen.xmm3;
     auto fvec = gen.ymm4;
 
-    gen.movq(u8vec, gen.qword[src]);
+    gen.vmovq(u8vec, gen.qword[src]);
     gen.vpmovzxbd(i32vec, u8vec);
     gen.vcvtdq2ps(fvec, i32vec);
     gen.vcvtps2ph(f16vec, fvec, 0);
     gen.vzeroupper();
-    gen.movdqu(gen.xword[dst], f16vec);
+    gen.vmovdqu(gen.xword[dst], f16vec);
 }
 
 template <>
@@ -64,7 +64,7 @@ void jit_convert_vec<float, int8_t>(jit::Generator& gen, const Xbyak::RegExp& sr
     gen.vpshufb(p32vec, p32vec, order);         // Shuffle the bytes according to the order
     gen.vextracti128(p32vec_hi, p32vec, 1);     // extract upper part of p32vec
     gen.vpor(p32vec_lo, p32vec_lo, p32vec_hi);  // p32vec_lo = p32vec_lo | p32vec_hi
-    gen.movq(gen.qword[dst], p32vec_lo);        // save the result
+    gen.vmovq(gen.qword[dst], p32vec_lo);        // save the result
 }
 
 template <>
@@ -84,7 +84,7 @@ void jit_convert_vec<float16, int8_t>(jit::Generator& gen, const Xbyak::RegExp& 
     gen.vpshufb(p32vec, p32vec, order);         // Shuffle the bytes according to the order
     gen.vextracti128(p32vec_hi, p32vec, 1);     // extract upper part of p32vec
     gen.vpor(p32vec_lo, p32vec_lo, p32vec_hi);  // p32vec_lo = p32vec_lo | p32vec_hi
-    gen.movq(gen.qword[dst], p32vec_lo);        // save the result
+    gen.vmovq(gen.qword[dst], p32vec_lo);        // save the result
 }
 
 class jit_convert_array : public jit::Generator {
@@ -122,8 +122,8 @@ class jit_convert_array : public jit::Generator {
 
         foreach (rsi, 1, r8, [&, this](const Xbyak::Reg64& idx) {
             ctx.convert_vec(*this, reg_src, reg_dst);
-            add(reg_src, ctx.src.type_size * vlen);
-            add(reg_dst, ctx.dst.type_size * vlen);
+            add(reg_src, static_cast<uint32_t>(ctx.src.type_size * vlen));
+            add(reg_dst, static_cast<uint32_t>(ctx.dst.type_size * vlen));
         })
             ;
 
