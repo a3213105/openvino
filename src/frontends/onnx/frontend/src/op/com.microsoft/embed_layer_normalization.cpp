@@ -17,7 +17,7 @@ OutputVector embed_layer_normalization(const Node& node) {
     auto num_nodes = nodes.size();
 
     NGRAPH_CHECK(num_nodes >= 7 && num_nodes <= 9,
-                 "EmbedLayerNormalization takes 7 or 8 inputs. Provided " + std::to_string(num_nodes));
+                 "EmbedLayerNormalization takes 7 or 9 inputs. Provided " + std::to_string(num_nodes));
     NGRAPH_CHECK(nodes[0].get_element_type() == element::i32, "input_ids must have int32 type");
 
     const auto& input_ids = nodes[0];
@@ -30,7 +30,6 @@ OutputVector embed_layer_normalization(const Node& node) {
 
     const auto zero = default_opset::Constant::create(element::i32, Shape{1}, {0});
     std::shared_ptr<ngraph::Node> input = std::make_shared<default_opset::Gather>(word_embeddings, input_ids, zero, 0);
-
     // add position embeddings
     if (num_nodes > 8 && !ngraph::op::is_null(nodes[8])) {
         // if we have position_ids
@@ -39,13 +38,11 @@ OutputVector embed_layer_normalization(const Node& node) {
             std::make_shared<default_opset::Gather>(position_embeddings, position_ids, zero, 0);
         input = std::make_shared<default_opset::Add>(input, gathered_position_embeddings);
     } else {
-        // input_ids's shape is [batchsize, sequence_length]
-        // input'shape is [batchszie, sequence_length, hidden_size]
-        // position_embeddings's shape is [max_sequence_lenght, hidden_size]
-        // output = input + position_embeddings,
-        // after broadcast the shape of output is [batchszie, max_sequence_lenght, hidden_size]
-        // the output shape is error.
-        // so, we need slice the position_embeddings to [sequence_length, hidden_size] first
+        // input_ids' shape is [batchsize, sequence_length]
+        // input's shape is [batchsize, sequence_length, hidden_size]
+        // position_embeddings's shape is [max_sequence_length, hidden_size]
+        // therefore input and position_embeddings cannot be added together
+        // so we need slice the position_embeddings to [sequence_length, hidden_size] first
         // then add it with input.
         const auto one = default_opset::Constant::create(element::i32, Shape{1}, {1});
         const auto input_ids_shape = std::make_shared<default_opset::ShapeOf>(input_ids, element::i32);
@@ -54,7 +51,6 @@ OutputVector embed_layer_normalization(const Node& node) {
             std::make_shared<default_opset::Slice>(position_embeddings, zero, seqlen, one, zero);
         input = std::make_shared<default_opset::Add>(input, gathered_position_embeddings);
     }
-
     // add segment embeddings if available
     if (!ngraph::op::is_null(segment_ids)) {
         NGRAPH_CHECK(!ngraph::op::is_null(segment_embeddings),
