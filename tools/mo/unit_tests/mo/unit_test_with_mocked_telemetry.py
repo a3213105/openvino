@@ -14,6 +14,3 @@ class UnitTestWithMockedTelemetry(unittest.TestCase):
     def setUp(self):
         tm.Telemetry.__init__ = Mock(return_value=None)
         tm.Telemetry.send_event = Mock()
-        tm.Telemetry.start_session = Mock()
-        tm.Telemetry.end_session = Mock()
-        tm.Telemetry.force_shutdown = Mock()

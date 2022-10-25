@@ -10,13 +10,10 @@
 #include "arg_max_min_inst.h"
 #include "fully_connected_inst.h"
 #include "convolution_inst.h"
-#include "strided_slice_inst.h"
-#include "crop_inst.h"
 #include "deconvolution_inst.h"
 #include "shape_of_inst.h"
 #include "strided_slice_inst.h"
 #include "experimental_detectron_roi_feature_extractor_inst.hpp"
-#include "intel_gpu/plugin/common_utils.hpp"
 
 #include "intel_gpu/graph/network.hpp"
 #include "intel_gpu/runtime/engine.hpp"
@@ -122,10 +119,10 @@ void primitive_inst::check_memory_to_set(const memory& mem, const layout& layout
     }
 }
 
-void primitive_inst::set_output_memory(memory::ptr mem_new, bool check, size_t idx) {
+void primitive_inst::set_output_memory(memory::ptr mem_new, bool check) {
     auto& eng = _network.get_engine();
     // skip all the buzz if no action actually required
-    if (_outputs[idx] && eng.is_the_same_buffer(*mem_new, *_outputs[idx])) {
+    if (_output && eng.is_the_same_buffer(*mem_new, *_output)) {
         return;
     }
 
@@ -135,15 +132,14 @@ void primitive_inst::set_output_memory(memory::ptr mem_new, bool check, size_t i
         check_memory_to_set(*mem_new, ol);
 
     if (_node.is_constant()) {
-        mem_new->copy_from(_network.get_stream(), *_outputs[idx]);
+        mem_new->copy_from(_network.get_stream(), *_output);
     } else {
-        _outputs[idx] = mem_new;
+        _output = mem_new;
     }
 }
 
 void primitive_inst::update_shape() {
     GPU_DEBUG_GET_INSTANCE(debug_config);
-    GPU_DEBUG_PROFILED_STAGE(instrumentation::pipeline_stage::shape_inference);
 
     bool input_shape_changed = false;
     for (size_t i = 0; i < _deps.size(); i++) {
@@ -154,18 +150,12 @@ void primitive_inst::update_shape() {
         }
     }
 
-    // We assume that tensor ranks are static, thus shape_of doesn't need to update anything even if input shape is dynamic
-    if (_node.is_type<shape_of>() && !input_shape_changed)
-        return;
+    if (input_shape_changed)
+        set_shape_change();
 
-    // Even though the predecessors' shapes are not changed, the output shape might be udpated by the mem_dep
-    auto memory_deps = _node.get_const_memory_deps();
-    for (auto& i : _node.get_shape_infer_dependencies()) {
-        if (memory_deps.count(i) > 0) {
-            continue;
-        }
-        input_shape_changed = true;
-    }
+    // We assume that tensor ranks are static, thus shape_of doesn't need to update anything even if input shape is dynamic
+    if (_node.is_type<shape_of>())
+        return;
 
     // Strided slice loads data from {1,2,3} dependencies in impl::create method.
     // It means that this data must be put into impl_params map
@@ -182,12 +172,8 @@ void primitive_inst::update_shape() {
     if (!strided_slice_wa && !input_shape_changed && !_node.generates_dynamic_output() && _impl_params->output_layout.is_static())
         return;
 
-    if (input_shape_changed)
-        set_shape_change();
-
+    auto memory_deps = _node.get_const_memory_deps();
     std::vector<event::ptr> dependencies_events;
-    auto queue_type = get_network().get_stream().get_queue_type();
-    bool has_runtime_deps = false;
     for (auto& i : _node.get_shape_infer_dependencies()) {
         // Some primitives may have flexible count of deps (e.g. reshape), thus allow skipping some deps
         if (memory_deps.count(i) > 0 || i >= _node.get_dependencies().size()) {
@@ -195,8 +181,7 @@ void primitive_inst::update_shape() {
         }
         auto& dep = _node.get_dependency(i);
         auto dep_id = dep.id();
-        // Events may be not created for in-order queue, so take them for OOO queue only
-        if (_network.has_event(dep.id()) && queue_type == queue_types::out_of_order) {
+        if (_network.has_event(dep.id())) {
             dependencies_events.push_back(_network.get_primitive_event(dep_id));
             GPU_DEBUG_IF(debug_config->verbose >= 4) {
                 GPU_DEBUG_COUT << id() << ": shape infer waits for " << i << " dependency\n";
@@ -204,19 +189,12 @@ void primitive_inst::update_shape() {
         }
         auto dep_mem = _network.get_output_memory(dep_id);
         memory_deps.insert({i, dep_mem});
-        has_runtime_deps = true;
     }
 
-    if (has_runtime_deps) {
-        if (!dependencies_events.empty() && queue_type == queue_types::out_of_order) {
-            _network.get_stream().wait_for_events(dependencies_events);
-        } else if (queue_type == queue_types::in_order) {
-            _network.get_stream().finish();
-        }
-    }
+    if (!dependencies_events.empty())
+        _network.get_stream().wait_for_events(dependencies_events);
 
     _impl_params->memory_deps = memory_deps;
-
     auto new_layouts = _node.type()->calc_output_layouts(_node, *_impl_params);
     auto new_layout = new_layouts.empty() ? _node.type()->calc_output_layout(_node, *_impl_params) : new_layouts[0];
     new_layout.data_padding = padding::max(_node.get_primitive()->output_padding, new_layout.data_padding);
@@ -239,7 +217,6 @@ void primitive_inst::update_shape() {
 
 void primitive_inst::realloc_if_needed() {
     GPU_DEBUG_GET_INSTANCE(debug_config);
-    GPU_DEBUG_PROFILED_STAGE(instrumentation::pipeline_stage::memory_allocation);
 
     auto actual_layout = _impl_params->output_layout;
     OPENVINO_ASSERT(actual_layout.is_static(), "[GPU] Can't realloc mem for dynamic layout");
@@ -248,62 +225,57 @@ void primitive_inst::realloc_if_needed() {
     if (_node.is_type<input_layout>())
         return;
 
-    bool can_reuse_buffer = _outputs[0] && actual_layout.count() <= max_output_layout_size;
+    bool can_reuse_buffer = _output && actual_layout.count() <= max_output_layout_size;
 
     if (can_reuse_buffer) {
         GPU_DEBUG_IF(debug_config->verbose >= 4) {
             GPU_DEBUG_COUT << id() << ": reuse previously allocated output buffer" << std::endl;
         }
-        _outputs[0] = _network.get_engine().reinterpret_buffer(*_outputs[0], actual_layout);
+        _output = _network.get_engine().reinterpret_buffer(*_output, actual_layout);
     } else {
         GPU_DEBUG_IF(debug_config->verbose >= 4) {
             GPU_DEBUG_COUT << id() << ": realloc output memory. "
                            <<  " Current buffer_size=" << max_output_layout_size
                            <<  " Requested buffer_size=" << actual_layout.count() << std::endl;
         }
-        _outputs = allocate_outputs();
-        max_output_layout_size = _outputs[0]->get_layout().count();
+        _output = allocate_output();
+        max_output_layout_size = _output->get_layout().count();
     }
 }
 
 void primitive_inst::update_impl() {
-    GPU_DEBUG_PROFILED_STAGE(instrumentation::pipeline_stage::update_implementation);
     auto prev_impl_str =  _impl != nullptr ? _impl->get_kernel_name() : "nullptr";
     if (!_node.is_type<data>() && !(_node.is_type<mutable_data>() && _node.get_dependencies().empty())) {
-        auto get_layout_key = [&]() -> size_t {
-            size_t seed = 0;
-            auto& id = _impl_params->desc->id;
-            for (size_t i = 0; i < id.size(); i++) {
-                seed = hash_combine(seed, id[i]);
-            }
-            seed = hash_combine(seed, _node.get_unique_id());
-            for (auto& layout : _impl_params->input_layouts) {
-                for (auto& d : layout.get_shape()) {
-                    seed = hash_combine(seed, d);
+        auto get_layout_key = [&]()->std::string {
+            std::string layout_key_str = "";
+            if (_node.is_valid_output_layout()) {
+                layout_key_str = id() + "_" + std::to_string(_node.get_unique_id());
+                layout_key_str += "_" + _impl_params->output_layout.to_string();
+
+                for (auto in : _impl_params->input_layouts) {
+                    layout_key_str += "_" + in.to_string();
                 }
             }
-            for (auto& d : _impl_params->output_layout.get_shape()) {
-                seed = hash_combine(seed, d);
-            }
-            return seed;
+            return layout_key_str;
         };
 
         auto layout_key = get_layout_key();
-        auto& cache = _network.get_program()->get_implementations_cache();
-        if (cache.has(layout_key)) {
-            _impl = cache.get(layout_key)->clone();
-            GPU_DEBUG_PROFILED_STAGE_CACHE_HIT(true);
-        } else {
-            auto lru = cache.get_lru_element();
-            _impl = _node.type()->choose_impl(_node, *_impl_params);
-            bool lru_popped = cache.add(layout_key, _impl->clone());
-            if (lru_popped) {
-                for (auto& id : lru->get_kernel_ids())
-                    _network.get_program()->remove_kernel(id);
+        if (layout_key != "") {
+            auto& cache = _network.get_program()->get_implementations_cache();
+            if (cache.has(layout_key)) {
+                _impl = cache.get(layout_key)->clone();
+            } else {
+                auto lru = cache.get_lru_element();
+                _impl = _node.type()->choose_impl(_node, *_impl_params);
+                bool lru_popped = cache.add(layout_key, _impl->clone());
+                if (lru_popped) {
+                    for (auto& id : lru->get_kernel_ids())
+                        _network.get_program()->remove_kernel(id);
+                }
+                _network.get_program()->compile();
             }
-            _network.get_program()->compile();
+            _impl->init_kernels(_network.get_program()->get_kernels_cache());
         }
-        _impl->init_kernels(_network.get_program()->get_kernels_cache());
 
         reset_shape_change();
         GPU_DEBUG_GET_INSTANCE(debug_config);
@@ -339,9 +311,9 @@ event::ptr primitive_inst::execute(const std::vector<event::ptr>& events) {
 
             OPENVINO_ASSERT(outputs.find(last_prim_id) != outputs.end(), "[GPU] Can't find output primitive ", last_prim_id, " for unfused subgraph");
 
-            _outputs[0] = outputs.at(last_prim_id).get_memory();
+            _output = outputs.at(last_prim_id).get_memory();
 
-            _impl_params->output_layout = _outputs[0]->get_layout();
+            _impl_params->output_layout = _output->get_layout();
             return outputs.at(last_prim_id).get_event();
         }
 
@@ -387,40 +359,28 @@ event::ptr primitive_inst::execute(const std::vector<event::ptr>& events) {
                        << out_ptr << ")" << std::endl;
     }
 
-    if (_exec_deps.empty() && dependencies.empty()) {
-        dependencies = events;
-    } else {
-        auto queue_type = get_network().get_stream().get_queue_type();
-        if (queue_type == queue_types::out_of_order) {
-            dependencies.reserve(dependencies.size() + _exec_deps.size());
-            for (auto& input : _exec_deps) {
-                auto id = input->id();
-                try {
-                    // if the requested event does not exists it means that it has not been executed, so the processing_order is
-                    // wrong or synchronization failed.
-                    auto ev = get_network().get_primitive_event(id);
-                    dependencies.emplace_back(ev);
-                } catch (const std::out_of_range& oor) {
-                    OPENVINO_ASSERT(false, "[GPU] execution order corrupted: ", oor.what());
-                }
+    if (_exec_deps.empty() && dependencies.empty())
+        return _impl->execute(events, *this);
+
+    auto queue_type = get_network().get_stream().get_queue_type();
+    if (queue_type == queue_types::out_of_order) {
+        dependencies.reserve(dependencies.size() + _exec_deps.size());
+        for (auto& input : _exec_deps) {
+            auto id = input->id();
+            try {
+                // if the requested event does not exists it means that it has not been executed, so the processing_order is
+                // wrong or synchronization failed.
+                auto ev = get_network().get_primitive_event(id);
+                dependencies.emplace_back(ev);
+            } catch (const std::out_of_range& oor) {
+                OPENVINO_ASSERT(false, "[GPU] execution order corrupted: ", oor.what());
             }
         }
     }
-
-    {
-        GPU_DEBUG_PROFILED_STAGE(instrumentation::pipeline_stage::inference);
-        auto ev = _impl->execute(dependencies, *this);
-
-        GPU_DEBUG_IF(!debug_config->dump_profiling_data.empty()) {
-            get_network().get_stream().wait_for_events({ev});
-        }
-
-        return ev;
-    }
+    return _impl->execute(dependencies, *this);
 }
 
 void primitive_inst::set_arguments() {
-    GPU_DEBUG_PROFILED_STAGE(instrumentation::pipeline_stage::set_arguments);
     OPENVINO_ASSERT(_has_valid_input, id(), " has invalid/unset input");
     _impl->set_arguments(*this);
 }
@@ -430,18 +390,14 @@ void primitive_inst::build_deps() {
         _deps = _network.get_primitives(_node.get_dependencies());
         _exec_deps = build_exec_deps(_deps);
     }
-    if (_deps_new.empty() && !_node.get_dependencies_new().empty()) {
-        _deps_new = _network.get_primitives(_node.get_dependencies_new());
-    }
 }
 
 primitive_inst::primitive_inst(network& network, program_node const& node, bool allocate_memory)
     : _network(network)
     , _node(node)
-    , _node_output_layout(node.get_output_layout())
     , _impl_params(node.get_kernel_impl_params())
     , _impl(node.get_selected_impl() ? node.get_selected_impl()->clone() : nullptr)
-    , _outputs({memory::ptr()})
+    , _output()
     , _output_changed(false)
     , _mem_allocated(allocate_memory)
     , _is_dynamic(_node.is_dynamic() || _node.generates_dynamic_output()) {
@@ -465,16 +421,16 @@ primitive_inst::primitive_inst(network& network, program_node const& node, bool 
                                                        && !node.is_type<experimental_detectron_roi_feature_extractor>()) {
             for (auto& user : node.get_users())
                 if (user->is_type<mutable_data>())
-                    _outputs[0] = user->as<mutable_data>().get_attached_memory_ptr();
+                    _output = user->as<mutable_data>().get_attached_memory_ptr();
         } else {
-            _outputs = allocate_outputs();
+            _output = allocate_output();
         }
     }
     if (_impl)
         _impl->set_node_params(node);
 
-    if (_outputs[0])
-        max_output_layout_size = _outputs[0]->get_layout().count();
+    if (_output)
+        max_output_layout_size = _output->get_layout().count();
 }
 
 void primitive_inst::allocate_internal_buffers(void) {
@@ -486,13 +442,11 @@ void primitive_inst::allocate_internal_buffers(void) {
 
     auto device_mem_acc = [&](size_t a, std::shared_ptr<primitive_inst> b) {
         if (!b->mem_allocated()) return a;
-        auto res = a;
-        for (size_t i = 0; i < b->outputs_memory_count(); ++i) {
-            if (b->output_memory(i).get_allocation_type() == allocation_type::usm_device ||
-                b->output_memory(i).get_allocation_type() == allocation_type::cl_mem)
-                return a + b->output_memory().size();
-        }
-        return res;
+        if (b->output_memory().get_allocation_type() == allocation_type::usm_device ||
+            b->output_memory().get_allocation_type() == allocation_type::cl_mem)
+            return a + b->output_memory().size();
+        else
+            return a;
     };
 
     auto& engine = get_network().get_engine();
@@ -502,10 +456,9 @@ void primitive_inst::allocate_internal_buffers(void) {
     // Decided the limitation as 85 % empirically, but still it needs further investigation.
     const auto& inst_deps = _network.get_primitives(_node.get_dependencies());
 
-    auto total_device_mem_size = std::accumulate(inst_deps.begin(), inst_deps.end(), size_t(0), device_mem_acc);
-    for (const auto& output : _outputs) {
-        if (output->get_allocation_type() ==  allocation_type::usm_device)
-            total_device_mem_size += output->size();
+    auto total_device_mem_size = std::accumulate(inst_deps.begin(), inst_deps.end(), 0, device_mem_acc);
+    if (_output->get_allocation_type() ==  allocation_type::usm_device) {
+        total_device_mem_size += _output->size();
     }
 
     int64_t available_device_mem_size = engine.get_device_info().max_global_mem_size - total_device_mem_size;
@@ -532,7 +485,6 @@ void primitive_inst::allocate_internal_buffers(void) {
 }
 
 event::ptr primitive_inst::update_weights() {
-    GPU_DEBUG_PROFILED_STAGE(instrumentation::pipeline_stage::update_weights);
     if (!_impl)
         return nullptr;
 
@@ -546,7 +498,6 @@ event::ptr primitive_inst::update_weights() {
     bool requires_reorder = weights_params.engine != kernel_selector::GenericKernelParams::Engine::NONE &&
                             (!_impl_params->reordered_weights || _impl_params->reordered_weights->get_layout() != from_weights_tensor(weights_params.dest));
     if (requires_reorder) {
-        GPU_DEBUG_PROFILED_STAGE_CACHE_HIT(false);
         auto weights_idx = _node.get_primitive()->input.size();
         auto original_weights_memory = dep_memory_ptr(weights_idx);
         auto original_layout = original_weights_memory->get_layout();
@@ -570,7 +521,6 @@ event::ptr primitive_inst::update_weights() {
                 GPU_DEBUG_IF(debug_config->verbose >= 4) {
                     GPU_DEBUG_COUT << id() << ": reorder weights (cached) from " << original_layout << "\nto " << expected_layout << std::endl;
                 }
-                GPU_DEBUG_PROFILED_STAGE_CACHE_HIT(true);
                 kernel = cache.get(layout_key);
             } else {
                 GPU_DEBUG_IF(debug_config->verbose >= 4) {
@@ -599,15 +549,8 @@ event::ptr primitive_inst::update_weights() {
         args.inputs.push_back(original_weights_memory);
         args.outputs.push_back(_impl_params->reordered_weights);
         stream.set_arguments(*kernel, weights_params.clKernel->params, args);
-        auto ev = stream.enqueue_kernel(*kernel, weights_params.clKernel->params, args, {}, true);
-
-        GPU_DEBUG_IF(!debug_config->dump_profiling_data.empty()) {
-            stream.wait_for_events({ev});
-        }
-
-        return ev;
+        return stream.enqueue_kernel(*kernel, weights_params.clKernel->params, args, {}, true);
     }
-    GPU_DEBUG_PROFILED_STAGE_CACHE_HIT(true);
 
     return nullptr;
 }
@@ -706,13 +649,8 @@ memory::ptr primitive_inst::allocate_output(engine& _engine, memory_pool& pool, 
     }
 }
 
-std::vector<memory::ptr> primitive_inst::allocate_outputs() {
-    std::vector<memory::ptr> outputs;
-    for (size_t i = 0; i < get_node().get_outputs_count() ; ++i) {
-        outputs.push_back(allocate_output(get_network().get_engine(), _network.get_memory_pool(), _node, *_impl_params,
-                          get_network_id(), _network.is_internal()));
-    }
-    return outputs;
+memory::ptr primitive_inst::allocate_output() {
+    return allocate_output(get_network().get_engine(), _network.get_memory_pool(), _node, *_impl_params, get_network_id(), _network.is_internal());
 }
 
 std::vector<std::shared_ptr<primitive_inst>> primitive_inst::build_exec_deps(
@@ -840,46 +778,16 @@ bool primitive_inst::is_valid_fusion() const {
         auto dep = _deps[dep_idx];
 
         auto dep_pshape = dep->_impl_params->output_layout.get_partial_shape();
-        auto merged_shape = out_pshape;
-        auto can_broadcast = ov::PartialShape::broadcast_merge_into(merged_shape, dep_pshape, fd.typed_desc<eltwise>()->broadcast_spec);
 
-        // We check that broadcasting of extra input is possible and it doesn't change output shape. If it output shape is changed, then
-        // some dimension of dep_pshape is greater than out_pshape
-        if (!can_broadcast || merged_shape != out_pshape)
-            return false;
+        OPENVINO_ASSERT(out_pshape.rank() == dep_pshape.rank(), "[GPU] Incompatible ranks: ", out_pshape.rank(), " vs ", dep_pshape.rank());
+
+        for (int64_t i = 0; i < dep_pshape.rank().get_length(); i++) {
+            if (dep_pshape[i].get_length() > out_pshape[i].get_length())
+                return false;
+        }
     }
 
     return true;
-}
-
-void primitive_inst::add_profiling_data(instrumentation::pipeline_stage stage, bool cache_hit, int64_t time) {
-    instrumentation::perf_counter_key key {
-            _impl_params->input_layouts,
-            { _impl_params->output_layout },
-            get_implementation_name(),
-            stage,
-            cache_hit
-    };
-
-    auto hash = instrumentation::perf_counter_hash()(key);
-    auto& d = _profiling_data[hash];
-    if (_profiling_info.find(hash) == _profiling_info.end()) {
-        _profiling_info.emplace(hash, key);
-    }
-
-    auto& total_time = std::get<0>(d);
-    auto& total_iter = std::get<1>(d);
-    total_time += time;
-    total_iter++;
-}
-
-std::string primitive_inst::get_implementation_name() const {
-    try {
-        auto kernel_name = _impl ? _impl->get_kernel_name() : "";
-        return !kernel_name.empty() ? kernel_name : "undef";
-    } catch (...) { }
-
-    return "undef";
 }
 
 }  // namespace cldnn

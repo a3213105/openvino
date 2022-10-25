@@ -78,7 +78,6 @@ ExecNetwork::ExecNetwork(const InferenceEngine::CNNNetwork &network,
     bool isFloatModel = !ngraph::op::util::has_op_with_type<ngraph::op::FakeQuantize>(function);
 
     _cfg.isNewApi = !isLegacyAPI();
-    _mutex = std::make_shared<std::mutex>();
 
     // WA for inference dynamic batch cases in new API
     if (_cfg.isNewApi) {
@@ -177,10 +176,10 @@ ExecNetwork::GraphGuard::Lock ExecNetwork::GetGraph() const {
         auto makeGraph = [&] {
             try {
                 {
-                    std::lock_guard<std::mutex> lock{*_mutex.get()};
+                    std::lock_guard<std::mutex> lock{_cfgMutex};
                     graphLock._graph.setConfig(_cfg);
                 }
-                graphLock._graph.CreateGraph(_network, extensionManager, _numaNodesWeights[numaNodeId], _mutex);
+                graphLock._graph.CreateGraph(_network, extensionManager, _numaNodesWeights[numaNodeId]);
             } catch(...) {
                 exception = std::current_exception();
             }
@@ -199,7 +198,7 @@ ExecNetwork::GraphGuard::Lock ExecNetwork::GetGraph() const {
 
 void ExecNetwork::setProperty(const std::map<std::string, std::string> &properties) {
     {
-        std::lock_guard<std::mutex> lock{*_mutex.get()};
+        std::lock_guard<std::mutex> lock{_cfgMutex};
         _cfg.readProperties(properties);
     }
     for (auto& g : _graphs) {

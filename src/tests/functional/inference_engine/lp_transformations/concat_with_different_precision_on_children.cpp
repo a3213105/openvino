@@ -127,7 +127,6 @@ public:
         result <<
             LayerTransformation::getTestCaseNameByParams(precision, inputShape, testValues.params) << "_" <<
             (testValues.multiChannels ? "multiChannels_" : "notMultiChannels_") <<
-            "axis" << testValues.axis <<
             testValues.actual << "_" <<
             testValues.result << "_";
         return result.str();
@@ -148,7 +147,7 @@ const std::vector<ngraph::element::Type> precisions = {
 const std::vector<ngraph::PartialShape> shapes = {
     { 1, 3, 10, 10 },
     { 4, 3, 10, 10 },
-    { -1, 3, 10, -1 }
+    { Dimension::dynamic(), 3, Dimension::dynamic(), Dimension::dynamic() }
 };
 
 const std::vector<ConcatTransformationTestValues> testValues = {
@@ -172,7 +171,7 @@ const std::vector<ConcatTransformationTestValues> testValues = {
             { ngraph::element::f32, {}, { 0.01f } }
         }
     },
-    // U8 concatenation by spatial dimension
+    // U8 with unsupported axis
     {
         LayerTransformation::createParamsU8I8(),
         false,
@@ -183,13 +182,13 @@ const std::vector<ConcatTransformationTestValues> testValues = {
         },
         {
             { 256ul, ngraph::Shape({}), {0.f}, {2.55f}, {0.f}, {255.f} },
-            { 256ul, ngraph::Shape({}), {0.f}, {2.55f / 2.f}, {0.f}, {128.f} },
+            { 256ul, ngraph::Shape({}), {0.f}, {2.55f / 2.f}, {0.f}, {255.f} },
             ngraph::element::u8,
-            {},
-            {},
+            {{ngraph::element::f32}, {}, {0.01f}},
+            {{ngraph::element::f32}, {}, {0.005f}},
             ngraph::element::f32,
-            { ngraph::element::f32, {}, { 0.01f } },
-            { ngraph::element::f32, {}, { 0.01f } }
+            {{}, {}, {}},
+            {{}, {}, {}}
         }
     },
     // I8

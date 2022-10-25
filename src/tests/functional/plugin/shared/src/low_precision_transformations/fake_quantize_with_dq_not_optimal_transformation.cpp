@@ -29,7 +29,6 @@ std::string FakeQuantizeWithNotOptimalTransformation::getTestCaseName(const test
 }
 
 void FakeQuantizeWithNotOptimalTransformation::SetUp() {
-    SKIP_IF_CURRENT_TEST_IS_DISABLED();
     ngraph::PartialShape inputShape;
     ngraph::element::Type netPrecision;
     ngraph::pass::low_precision::LayerTransformation::Params params;

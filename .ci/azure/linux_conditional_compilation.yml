@@ -4,25 +4,8 @@ trigger:
     - master
     - releases/*
   paths:
-    exclude: 
-    - docs/
-    - /**/docs/*
-    - /**/*.md
-    - README.md
-    - /**/layer_tests_summary/**
-
-pr:
-  branches:
-    include:
-    - master
-    - releases/*
-  paths:
-    exclude: 
-    - docs/
-    - /**/docs/*
-    - /**/*.md
-    - README.md
-    - /**/layer_tests_summary/**
+    exclude:
+    - docs/*
 
 jobs:
 - job: LinCC
@@ -91,8 +74,7 @@ jobs:
     inputs:
       cmakeArgs: >
         -GNinja
-        -DCMAKE_VERBOSE_MAKEFILE=ON
-        -DCMAKE_COMPILE_WARNING_AS_ERROR=ON
+        -DVERBOSE_BUILD=ON
         -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
         -DENABLE_FASTER_BUILD=ON
         -DENABLE_PROFILING_ITT=ON

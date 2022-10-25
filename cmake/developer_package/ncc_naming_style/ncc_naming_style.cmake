@@ -56,34 +56,23 @@ endif()
 # Since we were able to find_package(Clang) in a separate process
 # let's try to find in current process
 if(ENABLE_NCC_STYLE)
-    if(APPLE)
-        find_host_library(libclang_location NAMES clang
-                          PATHS /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib
-                          DOC "Path to clang library")
-    else()
-        find_host_package(Clang QUIET)
-    endif()
-
+    find_host_package(Clang QUIET)
     if(Clang_FOUND AND TARGET libclang)
         get_target_property(libclang_location libclang LOCATION)
-    endif()
-
-    if(NOT libclang_location)
+        message(STATUS "Found libclang: ${libclang_location}")
+    else()
         message(WARNING "clang-${clang_version} libclang-${clang_version}-dev are not found (required for ncc naming style check)")
         set(ENABLE_NCC_STYLE OFF)
-    else()
-        message(STATUS "Found libclang: ${libclang_location}")
     endif()
 endif()
 
 # check python requirements_dev.txt
-if(ENABLE_NCC_STYLE)
-    set(ncc_script_py "${ncc_style_dir}/ncc/ncc.py")
 
-    if(NOT EXISTS ${ncc_script_py})
-        message(WARNING "ncc.py is not downloaded via submodule")
-        set(ENABLE_NCC_STYLE OFF)
-    endif()
+set(ncc_script_py "${ncc_style_dir}/ncc/ncc.py")
+
+if(NOT EXISTS ${ncc_script_py})
+    message(WARNING "ncc.py is not downloaded via submodule")
+    set(ENABLE_NCC_STYLE OFF)
 endif()
 
 if(ENABLE_NCC_STYLE)

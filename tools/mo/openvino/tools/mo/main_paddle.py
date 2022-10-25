@@ -10,4 +10,5 @@ from openvino.frontend import FrontEndManager  # pylint: disable=no-name-in-modu
 
 if __name__ == "__main__":
     from openvino.tools.mo.main import main
-    sys.exit(main(get_all_cli_parser(FrontEndManager()), 'paddle'))
+    fem = FrontEndManager()
+    sys.exit(main(get_all_cli_parser(fem), fem, 'paddle'))

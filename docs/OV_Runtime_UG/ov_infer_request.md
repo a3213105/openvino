@@ -222,7 +222,6 @@ You can use the `ov::InferRequest::cancel` method if you want to abort execution
 
     @endsphinxtabset
 
-
 ## Examples of Infer Request Usages
 
 Presented below are examples of what the Infer Request can be used for.

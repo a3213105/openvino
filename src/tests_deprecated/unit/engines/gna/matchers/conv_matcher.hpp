@@ -6,7 +6,7 @@
 
 #include "backend/gna_types.h"
 #include "nnet_base_matcher.hpp"
-#include "frontend/quantization.hpp"
+#include "frontend/quantization.h"
 
 class ConvoluionLayerMatcher : public ::testing::MatcherInterface<const gna_nnet_type_t*> {
     bool matchInserted;

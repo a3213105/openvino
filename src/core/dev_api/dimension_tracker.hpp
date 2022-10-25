@@ -12,9 +12,6 @@
 
 namespace ov {
 
-/// \brief Special label value indicate no label set.
-constexpr size_t no_label = 0;
-
 /// \brief Friend class of Dimension to set, get and track dimensions and their equivalence
 class DimensionTracker {
 public:
@@ -25,7 +22,7 @@ public:
     };
 
     static void set_label(ov::Dimension& d, size_t label) {
-        OPENVINO_ASSERT(label != no_label, "Can not set zero as label for dimension -- it is reserved for no label");
+        OPENVINO_ASSERT(label != 0, "Can not set zero as label for dimension -- it is reserved for no label");
         d.m_label = label;
     }
 
@@ -50,7 +47,7 @@ public:
     }
 
     static void reset_tracking_info(ov::Dimension& d) {
-        d.m_label = no_label;
+        d.m_label = 0;
         d.m_table_of_equivalence = nullptr;
     }
 

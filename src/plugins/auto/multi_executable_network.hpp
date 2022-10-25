@@ -18,6 +18,7 @@
 namespace MultiDevicePlugin {
 class MultiExecutableNetwork : public ExecutableNetwork {
     friend IInferPtr MultiSchedule::CreateInferRequest();
+    friend IInferPtr BinderMultiSchedule::CreateInferRequest();
 public:
     using Ptr = std::shared_ptr<MultiExecutableNetwork>;
 

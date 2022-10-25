@@ -598,8 +598,9 @@ std::unique_ptr<GraphDataTiling> ConvGraphDataTilingFactory::makeDirTiling(const
         return std::unique_ptr<GraphDataTiling>(new ConvInputToOutputDirection(convolutionOptions));
     } else if (direction == Direction::OUTPUT_TO_INPUT) {
         return std::unique_ptr<GraphDataTiling>(new ConvOutputToInputDirection(convolutionOptions));
+    } else {
+        IE_ASSERT(false) << "Unsupported direction";
     }
-    IE_THROW() << "Unsupported direction";
 }
 
 std::unique_ptr<GraphDataTiling> ConvGraphDataTilingFactory::makeDirTiling(const GraphDataTiling& graphDataTiling) {
@@ -609,8 +610,9 @@ std::unique_ptr<GraphDataTiling> ConvGraphDataTilingFactory::makeDirTiling(const
     } else if (graphDataTiling.getDirection() == Direction::OUTPUT_TO_INPUT) {
         return std::unique_ptr<GraphDataTiling>(
             new ConvOutputToInputDirection(dynamic_cast<const ConvOutputToInputDirection&>(graphDataTiling)));
+    } else {
+        IE_ASSERT(false) << "Unsupported direction";
     }
-    IE_THROW() << "Unsupported direction";
 }
 
 //
