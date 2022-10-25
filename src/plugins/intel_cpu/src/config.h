@@ -10,7 +10,6 @@
 
 #include <string>
 #include <map>
-#include <mutex>
 
 namespace ov {
 namespace intel_cpu {

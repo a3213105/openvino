@@ -276,8 +276,9 @@ std::unique_ptr<GraphDataTiling> PoolGraphDataTilingFactory::makeDirTiling(const
         return std::unique_ptr<GraphDataTiling>(new PoolingInputToOutputDirection(convolutionOptions));
     } else if (direction == Direction::OUTPUT_TO_INPUT) {
         return std::unique_ptr<GraphDataTiling>(new PoolingOutputToInputDirection(convolutionOptions));
+    } else {
+        IE_ASSERT(false) << "Unsupported direction";
     }
-    IE_THROW() << "Unsupported direction";
 }
 
 std::unique_ptr<GraphDataTiling> PoolGraphDataTilingFactory::makeDirTiling(const GraphDataTiling& graphDataTiling) {
@@ -287,8 +288,9 @@ std::unique_ptr<GraphDataTiling> PoolGraphDataTilingFactory::makeDirTiling(const
     } else if (graphDataTiling.getDirection() == Direction::OUTPUT_TO_INPUT) {
         return std::unique_ptr<GraphDataTiling>(
                 new PoolingOutputToInputDirection(dynamic_cast<const PoolingOutputToInputDirection&>(graphDataTiling)));
+    } else {
+        IE_ASSERT(false) << "Unsupported direction";
     }
-    IE_THROW() << "Unsupported direction";
 }
 
 //

@@ -61,9 +61,6 @@ public:
 
     MemoryDescPtr cloneWithNewPrecision(const InferenceEngine::Precision prec) const override;
 
-    using DnnlMemoryDesc::setPrecision;
-    using DnnlMemoryDesc::getPrecision;
-
 private:
     DnnlBlockedMemoryDesc(InferenceEngine::Precision prc, const Shape& shape, const VectorDims& blockedDims,
                           const VectorDims& order, size_t offsetPadding = 0, const VectorDims& offsetPaddingToData = {},

@@ -76,10 +76,8 @@ protected:
                 args.fused_op_inputs.push_back(instance.fused_memory(i));
             }
         }
-
-        for (size_t i = 0; i < instance.outputs_memory_count(); i++) {
-            args.outputs.push_back(instance.output_memory_ptr(i));
-        }
+        // TODO: support multiple outputs
+        args.outputs.push_back(instance.output_memory_ptr());
 
         return args;
     }

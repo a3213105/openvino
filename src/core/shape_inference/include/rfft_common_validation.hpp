@@ -108,7 +108,9 @@ void validate_axes(const ov::op::util::FFTBase* op,
 }
 
 template <class T>
-void validate_signal_size(const ov::op::util::FFTBase* op, const T& axes_shape, const T& signal_size_shape) {
+void validate_signal_size(const ov::op::util::FFTBase* op,
+                          const T& axes_shape,
+                          const T& signal_size_shape) {
     NODE_VALIDATION_CHECK(op,
                           signal_size_shape.rank().compatible(1),
                           "(I)RDFT op signal size input must be 1D tensor. Got signal: ",
@@ -147,7 +149,7 @@ void shape_validation(const ov::op::util::FFTBase* op,
         validate_signal_size(op, axes_shape, signal_size_shape);
     }
 }
-}  // namespace rfft_common_validation
+}  // rfft_common_validation
 }  // namespace util
 }  // namespace op
 }  // namespace ov

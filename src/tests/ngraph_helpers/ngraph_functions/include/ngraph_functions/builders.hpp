@@ -508,8 +508,7 @@ std::shared_ptr<ngraph::Node> makeLSTM(const OutputVector& in,
                                            float clip = 0.f,
                                            bool make_sequence = false,
                                            ngraph::op::RecurrentSequenceDirection direction = ngraph::op::RecurrentSequenceDirection::FORWARD,
-                                           ngraph::helpers::SequenceTestsMode mode = ngraph::helpers::SequenceTestsMode::PURE_SEQ,
-                                           float WRB_range = 0.f);
+                                           ngraph::helpers::SequenceTestsMode mode = ngraph::helpers::SequenceTestsMode::PURE_SEQ);
 
 std::shared_ptr<ngraph::Node> makeGRU(const OutputVector& in,
                                       const std::vector<ngraph::Shape>& constants,

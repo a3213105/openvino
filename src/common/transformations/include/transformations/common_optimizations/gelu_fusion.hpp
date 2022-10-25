@@ -21,14 +21,6 @@ class TRANSFORMATIONS_API GeluFusionWithTanh;
 }  // namespace pass
 }  // namespace ngraph
 
-namespace ov {
-namespace pass {
-
-class TRANSFORMATIONS_API GeluFusionWithErfFour;
-
-}  // namespace pass
-}  // namespace ov
-
 /**
  * @ingroup ie_transformation_common_api
  * @brief GeluFusion transformation replaces a sub-graph
@@ -43,7 +35,7 @@ public:
 /**
  * @ingroup ie_transformation_common_api
  * @brief GeluFusion transformation replaces a sub-graph
- * 0.5 * (x * (1 + erf(x / sqrt(2)))) with a Gelu op.
+ * 0.5 * (x * (1 + erf(x / sqrt(2))) with a Gelu op.
  */
 class ngraph::pass::GeluFusionWithErfTwo : public ngraph::pass::MatcherPass {
 public:
@@ -54,7 +46,7 @@ public:
 /**
  * @ingroup ie_transformation_common_api
  * @brief GeluFusion transformation replaces a sub-graph
- * x * (0.5 * (1 + erf(x / sqrt(2)))) with a Gelu op.
+ * x * (0.5 * (1 + erf(x / sqrt(2))) with a Gelu op.
  */
 class ngraph::pass::GeluFusionWithErfThree : public ngraph::pass::MatcherPass {
 public:
@@ -65,18 +57,7 @@ public:
 /**
  * @ingroup ie_transformation_common_api
  * @brief GeluFusion transformation replaces a sub-graph
- * x * (0.5 + 0.5 * erf(x * (1 / sqrt(2)))) with a Gelu op.
- */
-class ov::pass::GeluFusionWithErfFour : public ov::pass::MatcherPass {
-public:
-    OPENVINO_RTTI("GeluFusionWithErfFour", "0");
-    GeluFusionWithErfFour();
-};
-
-/**
- * @ingroup ie_transformation_common_api
- * @brief GeluFusion transformation replaces a sub-graph
- * x * (0.5 * (1 + tanh([sqrt(2 / pi)] * [x + 0.044715^3]))) with a Gelu (Tanh) op.
+ * x * (0.5 * (1 + tanh([sqrt(2 / pi)] * [x + 0.044715^3])) with a Gelu (Tanh) op.
  */
 class ngraph::pass::GeluFusionWithTanh : public ngraph::pass::MatcherPass {
 public:
@@ -95,7 +76,6 @@ public:
         add_matcher<ngraph::pass::GeluFusionWithErfOne>();
         add_matcher<ngraph::pass::GeluFusionWithErfTwo>();
         add_matcher<ngraph::pass::GeluFusionWithErfThree>();
-        add_matcher<ov::pass::GeluFusionWithErfFour>();
         add_matcher<ngraph::pass::GeluFusionWithTanh>();
     }
 };

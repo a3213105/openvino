@@ -10,38 +10,17 @@ from openvino.tools.mo.utils.error import Error
 
 
 def any_extensions_used(argv: argparse.Namespace):
-    # Checks that extensions are provided.
-    # Allowed types are string containing path to legacy extension directory
-    # or path to new extension .so file, or classes inherited from BaseExtension.
-    if not hasattr(argv, 'extensions') or argv.extensions is None:
-        return False
-
-    if isinstance(argv.extensions, list) and len(argv.extensions) > 0:
-        has_non_default_path = False
-        has_non_str_objects = False
-        for ext in argv.extensions:
-            if not isinstance(ext, str):
-                has_non_str_objects = True
-                continue
-            if len(ext) == 0 or ext == import_extensions.default_path():
-                continue
-            has_non_default_path = True
-
-        return has_non_default_path or has_non_str_objects
-
-    raise Exception("Expected list of extensions, got {}.".format(type(argv.extensions)))
+    return hasattr(argv, 'extensions') and argv.extensions is not None and len(argv.extensions) > 0 \
+        and argv.extensions != import_extensions.default_path() # extensions arg has default value
 
 
 def legacy_extensions_used(argv: argparse.Namespace):
     if any_extensions_used(argv):
-        extensions = argv.extensions
+        extensions = argv.extensions.split(',')
         legacy_ext_counter = 0
         for extension in extensions:
-            if not isinstance(extension, str):
-                continue
-            if extension == import_extensions.default_path():
-                continue
-            if not Path(extension).is_file():
+            path = Path(extension)
+            if not path.is_file():
                 legacy_ext_counter += 1
         if legacy_ext_counter == len(extensions):
             return True # provided only legacy extensions
@@ -54,16 +33,11 @@ def legacy_extensions_used(argv: argparse.Namespace):
 
 def new_extensions_used(argv: argparse.Namespace):
     if any_extensions_used(argv):
-        extensions = argv.extensions
-        if not isinstance(extensions, list):
-            extensions = [extensions]
+        extensions = argv.extensions.split(',')
         new_ext_counter = 0
-        for extension in extensions:
-            if isinstance(extension, str):
-                path = Path(extension)
-                if path.is_file() and (path.suffix == '.so' or path.suffix == '.dll'):
-                    new_ext_counter += 1
-            else:
+        for extension in argv.extensions.split(','):
+            path = Path(extension)
+            if path.is_file() and (path.suffix == '.so' or path.suffix == '.dll'):
                 new_ext_counter += 1
         if new_ext_counter == len(extensions):
             return True # provided only new extensions
@@ -97,10 +71,9 @@ def is_new_json_config(json_file_path: str):
 def get_transformations_config_path(argv: argparse.Namespace) -> Path:
     if hasattr(argv, 'transformations_config') \
         and argv.transformations_config is not None and len(argv.transformations_config):
-        if isinstance(argv.transformations_config, str):
-            path = Path(argv.transformations_config)
-            if path.is_file():
-                return path
+        path = Path(argv.transformations_config)
+        if path.is_file():
+            return path
     return None
 
 
@@ -108,11 +81,6 @@ def new_transformations_config_used(argv: argparse.Namespace):
     path = get_transformations_config_path(argv)
     if path != None:
         return is_new_json_config(path)
-
-    if hasattr(argv, 'transformations_config') \
-            and argv.transformations_config is not None and not isinstance(argv.transformations_config, str):
-        return True
-
     return False
 
 

@@ -45,16 +45,10 @@ public:
 
     bool canBeExecutedInInt8() const;
     size_t getGroupNum() const { return groupNum; }
-    //OV Legacy input zero point mechanism can support per-channel zero point.
-    //Hold legacy input zero point.
-    std::vector<uint8_t> legacyInputZeroPoints;
-    //Hold legacy weight zero point.
-    std::vector<float> legacyWeightsZeroPoints;
-    //Hold legacy pre-calculated output compensation
-    std::vector<int32_t> legacyOutputCompensation;
-    //Hold stock per-tensor input zero point. Pass to onednn to calculate output compensation.
-    std::vector<int32_t> inputZeroPoints;
-    void initializeInputZeroPoints(const uint8_t* inputZpData, const size_t inputZpSize);
+
+    std::vector<uint8_t> inputZeroPoints;
+    std::vector<float> weightsZeroPoints;
+    std::vector<int32_t> outputCompensation;
 
     const InferenceEngine::SizeVector &getWeightDims() { return weightDims; }
     const std::vector<size_t> &getStride() { return stride; }
@@ -84,11 +78,6 @@ protected:
     }
 
 private:
-    enum class zpType {
-        None,
-        PerTensor,
-        PerChannel
-    };
     class FusedSubgraph;
     using FusedSubgraphPtr = std::shared_ptr<FusedSubgraph>;
     using executorPtr = std::shared_ptr<DnnlExecutor>;
@@ -106,10 +95,9 @@ private:
     void prepareParams() override;
     void execute(dnnl::stream strm) override;
     void executeDynamicImpl(dnnl::stream strm) override;
-    void addLegacyZeroPoints(dnnl::primitive_attr& attr);
+
     void addZeroPoints(dnnl::primitive_attr& attr);
     void setPostOps(dnnl::primitive_attr &attr, const VectorDims &dims, bool useLegacyPostOps, bool initWeights = false);
-    void SetPostOpsAndZeroPoints(std::vector<dnnl::primitive_attr> &attrs);
     void filterSupportedDescriptors();
     bool isPossibleToSkipInitConfig(DnnlDesriptor &desc) const;
     bool isNspcAvailable() const;
@@ -119,7 +107,6 @@ private:
     MemoryDescPtr getSumMemDesc(dnnl::primitive_desc_iterator &primitive_desc_it);
     MemoryPtr getOutputMemory() const;
 
-    void appendLegacyZeroPointsArgs();
     void appendZeroPointsArgs();
     void initTryBrgconvFlag();
 
@@ -130,9 +117,6 @@ private:
     bool isPrimitivesPriorityDefined = false;
     bool withSumBroadcast = false;
     bool preferLegacyPostOps = false;
-    bool preferLegacyZeroPoint = false;
-    zpType inputZeroPointType = zpType::None;
-
     std::vector<size_t> stride;
     std::vector<ptrdiff_t> dilation;
     std::vector<ptrdiff_t> paddingL;
@@ -160,16 +144,17 @@ private:
 
     bool isWino = false;
     bool shouldTryBrgconv = false;
-    std::vector<dnnl::primitive_attr> attrs;
+    // cache attr for later usage. [0] - depthwise, quantize, [1] - binary
+    AttrPtr pInitAttrs[2];
     AttrPtr pAttr;
     bool autoPadding = false;
     FusedSubgraphPtr subgraph;
     std::unordered_map<NodePtr, std::vector<NodePtr>> fusedConstNodes;
 
-    MemoryPtr legacyInputZeroPointsMemPtr;
-    MemoryPtr legacyWeightsZeroPointsMemPtr;
-    MemoryPtr legacyOutputCompensationMemPtr;
-    MemoryPtr stockInputZeroPointsMemPtr;
+    MemoryPtr inputZeroPointsMemPtr;
+    MemoryPtr weightsZeroPointsMemPtr;
+    MemoryPtr outputCompensationMemPtr;
+
     dnnl::memory::data_type outputDataType;
     InferenceEngine::Precision sumPrc = InferenceEngine::Precision::UNSPECIFIED;
 
