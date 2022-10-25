@@ -3,28 +3,12 @@ trigger:
     include:
     - master
     - releases/*
-  paths:
-    exclude: 
-    - docs/
-    - /**/docs/*
-    - /**/*.md
-    - README.md
-    - /**/layer_tests_summary/**
-    - src/tests/functional/plugin/conformance/**
 
 pr:
   branches:
     include:
     - master
     - releases/*
-  paths:
-    exclude: 
-    - docs/
-    - /**/docs/*
-    - /**/*.md
-    - README.md
-    - /**/layer_tests_summary/**
-    - src/tests/functional/plugin/conformance/**
 
 resources:
   repositories:
@@ -125,12 +109,14 @@ jobs:
       python3 -m pip install -r /root/repos/openvino/src/bindings/python/requirements.txt &&
       cd /root/w/build &&
       cmake -GNinja
-      -DCMAKE_VERBOSE_MAKEFILE=ON
+      -DVERBOSE_BUILD=ON
       -DCMAKE_BUILD_TYPE=$(BUILD_TYPE)
-      -DOPENVINO_EXTRA_MODULES=/root/repos/openvino_contrib/modules
-      -DENABLE_INTEL_CPU=OFF
-      -DENABLE_INTEL_GPU=OFF
-      -DENABLE_INTEL_GNA=OFF
+      -DIE_EXTRA_MODULES=/root/repos/openvino_contrib/modules
+      -DNGRAPH_ONNX_IMPORT_ENABLE=OFF
+      -DENABLE_MKL_DNN=OFF
+      -DENABLE_CLDNN=OFF
+      -DENABLE_VPU=OFF
+      -DENABLE_GNA=OFF
       -DBUILD_arm_plugin=OFF
       -DBUILD_java_api=OFF
       -DENABLE_PYTHON=OFF

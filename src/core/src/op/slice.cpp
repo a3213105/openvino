@@ -77,7 +77,7 @@ bool is_max_int(element::Type_t ind_type, int64_t value) {
 }  // namespace
 
 bool op::v8::Slice::visit_attributes(AttributeVisitor& visitor) {
-    OV_OP_SCOPE(v8_Slice_visit_attributes);
+    NGRAPH_OP_SCOPE(v8_Slice_visit_attributes);
     return true;
 }
 
@@ -95,7 +95,7 @@ std::shared_ptr<ngraph::op::v0::Constant> op::v8::Slice::get_default_const_axes(
 }
 
 void op::v8::Slice::validate_and_infer_types() {
-    OV_OP_SCOPE(v8_Slice_validate_and_infer_types);
+    NGRAPH_OP_SCOPE(v8_Slice_validate_and_infer_types);
 
     const auto inputs_size = get_input_size();
     NODE_VALIDATION_CHECK(this,
@@ -215,7 +215,6 @@ void op::v8::Slice::validate_and_infer_types() {
         output_shape = calculate_output_shape(starts, stops, steps, axes, data_shape);
     } else {
         const auto data_static_rank = data_shape.rank().get_length();
-        OPENVINO_ASSERT(data_static_rank >= 0);
         if (axes_const) {
             // If we know only `axes` values, we should update lower_bound to 0 value,
             // for the specified dims by the axes. For unspecified dims, bounds as in data_shape.
@@ -234,7 +233,7 @@ void op::v8::Slice::validate_and_infer_types() {
         } else {
             // Otherwise `axes` values are also unknown,
             // then all of the output dims can be 0, so have lower bound = 0.
-            for (size_t i = 0; i < static_cast<size_t>(data_static_rank); ++i) {
+            for (size_t i = 0; i < data_static_rank; ++i) {
                 output_shape[i] = Dimension(0, data_shape[i].get_max_length());
             }
         }
@@ -243,7 +242,7 @@ void op::v8::Slice::validate_and_infer_types() {
 }
 
 std::shared_ptr<Node> op::v8::Slice::clone_with_new_inputs(const OutputVector& new_args) const {
-    OV_OP_SCOPE(v8_Slice_clone_with_new_inputs);
+    NGRAPH_OP_SCOPE(v8_Slice_clone_with_new_inputs);
     check_new_args_count(this, new_args);
     if (new_args.size() == 4) {
         return std::make_shared<v8::Slice>(new_args.at(0), new_args.at(1), new_args.at(2), new_args.at(3));
@@ -261,7 +260,7 @@ PartialShape op::v8::Slice::calculate_output_shape(const std::vector<int64_t>& s
                                                    const std::vector<int64_t>& steps,
                                                    const std::vector<int64_t>& axes,
                                                    const PartialShape& data_shape) const {
-    OV_OP_SCOPE(v8_Slice_calculate_output_shape);
+    NGRAPH_OP_SCOPE(v8_Slice_calculate_output_shape);
     const auto ind_size = starts.size();
     NODE_VALIDATION_CHECK(this,
                           stops.size() == ind_size && steps.size() == ind_size && axes.size() == ind_size,
@@ -306,7 +305,7 @@ PartialShape op::v8::Slice::calculate_output_shape(const std::vector<int64_t>& s
             if (is_max_int(get_input_element_type(2), stop) || is_max_int(get_input_element_type(1), start)) {
                 output_shape[norm_axis] = Dimension(-1);
                 continue;
-            } else if ((step < 0 && start < 0 && stop > 0) || (step > 0 && stop < 0 && start >= 0)) {
+            } else if ((step < 0 && start < 0 && stop > 0) || (step > 0 && stop < 0 && start > 0)) {
                 output_shape[norm_axis] = Dimension(-1);
                 continue;
             } else if (step < 0 && start > 0 && stop < 0) {
@@ -327,7 +326,7 @@ PartialShape op::v8::Slice::calculate_output_shape(const std::vector<int64_t>& s
 }
 
 bool op::v8::Slice::has_evaluate() const {
-    OV_OP_SCOPE(v8_Slice_has_evaluate);
+    NGRAPH_OP_SCOPE(v8_Slice_has_evaluate);
     switch (get_input_element_type(1)) {
     case ngraph::element::i8:
     case ngraph::element::i16:
@@ -362,7 +361,7 @@ bool op::v8::Slice::has_evaluate() const {
 }
 
 bool op::v8::Slice::evaluate(const HostTensorVector& outputs, const HostTensorVector& inputs) const {
-    OV_OP_SCOPE(v8_Slice_evaluate);
+    NGRAPH_OP_SCOPE(v8_Slice_evaluate);
 
     OPENVINO_ASSERT(inputs.size() >= 4, "Slice evaluate needs at least 4 inputs.");
     std::vector<int64_t> starts = host_tensor_2_vector<int64_t>(inputs[1]);

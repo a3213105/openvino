@@ -6,10 +6,10 @@
 
 #include "openvino/core/visibility.hpp"
 
-#ifdef openvino_mock_py_frontend_EXPORTS
+#ifdef IMPLEMENT_OPENVINO_API
 #    define MOCK_API OPENVINO_CORE_EXPORTS
 #else
 #    define MOCK_API OPENVINO_CORE_IMPORTS
-#endif  // openvino_mock_py_frontend_EXPORTS
+#endif  // IMPLEMENT_OPENVINO_API
 
 #define MOCK_C_API OPENVINO_EXTERN_C MOCK_API

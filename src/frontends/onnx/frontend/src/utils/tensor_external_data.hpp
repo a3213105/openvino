@@ -30,9 +30,9 @@ public:
 
 private:
     std::string m_data_location{};
-    uint64_t m_offset = 0;
-    uint64_t m_data_length = 0;
-    std::string m_sha1_digest{};
+    int m_offset = 0;
+    int m_data_length = 0;
+    int m_sha1_digest = 0;
 };
 }  // namespace detail
 }  // namespace onnx_import

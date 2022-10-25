@@ -14,23 +14,25 @@ ov::op::util::UnaryElementwiseArithmetic::UnaryElementwiseArithmetic() : Op() {}
 ov::op::util::UnaryElementwiseArithmetic::UnaryElementwiseArithmetic(const Output<Node>& arg) : Op({arg}) {}
 
 void ov::op::util::UnaryElementwiseArithmetic::validate_and_infer_elementwise_arithmetic() {
-    const auto& element_type = get_input_element_type(0);
+    auto args_et_pshape = op::util::validate_and_infer_elementwise_args(this);
+    element::Type& args_et = std::get<0>(args_et_pshape);
+    PartialShape& args_pshape = std::get<1>(args_et_pshape);
+
     NODE_VALIDATION_CHECK(this,
-                          element_type.is_dynamic() || element_type != element::boolean,
+                          args_et.is_dynamic() || args_et != element::boolean,
                           "Arguments cannot have boolean element type (argument element type: ",
-                          element_type,
+                          args_et,
                           ").");
 
-    const auto& arg_pshape = get_input_partial_shape(0);
-    set_output_type(0, element_type, arg_pshape);
+    set_output_type(0, args_et, args_pshape);
 }
 
 void ov::op::util::UnaryElementwiseArithmetic::validate_and_infer_types() {
-    OV_OP_SCOPE(util_UnaryElementwiseArithmetic_validate_and_infer_types);
+    NGRAPH_OP_SCOPE(util_UnaryElementwiseArithmetic_validate_and_infer_types);
     validate_and_infer_elementwise_arithmetic();
 }
 
 bool ov::op::util::UnaryElementwiseArithmetic::visit_attributes(AttributeVisitor& visitor) {
-    OV_OP_SCOPE(util_UnaryElementwiseArithmetic_visit_attributes);
+    NGRAPH_OP_SCOPE(util_UnaryElementwiseArithmetic_visit_attributes);
     return true;
 }

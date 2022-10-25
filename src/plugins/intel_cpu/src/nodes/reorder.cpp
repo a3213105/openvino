@@ -128,7 +128,7 @@ void Reorder::initSupportedPrimitiveDescriptors() {
 }
 
 void Reorder::createPrimitive() {
-    if (shapesDefined()) {
+    if (inputShapesDefined()) {
         if (needPrepareParams())
             prepareParams();
         updateLastInputDims();

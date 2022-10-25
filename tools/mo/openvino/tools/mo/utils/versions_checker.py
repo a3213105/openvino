@@ -231,7 +231,7 @@ def get_environment_setup(framework):
     return env_setup
 
 
-def check_requirements(framework=None, silent=True):
+def check_requirements(framework=None):
     """
     Please do not add parameter type annotations (param:type).
     Because we import this file while checking Python version.
@@ -241,7 +241,6 @@ def check_requirements(framework=None, silent=True):
     Logs a warning in case of permissible dissatisfaction
     Logs an error in cases of critical dissatisfaction
     :param framework: framework name
-    :param silent: determines if it is required to print warning messages
     :return: exit code (0 - execution successful, 1 - error)
     """
     framework_suffix = "_{}".format(framework)
@@ -250,10 +249,9 @@ def check_requirements(framework=None, silent=True):
         framework_suffix = ""
     elif framework == "tf":
         if "tensorflow" in env_setup and env_setup["tensorflow"] < LooseVersion("2.0.0"):
-            if not silent:
-                log.error('\t\nSupport of the Model Optimizer tool in TensorFlow 1.x environment is deprecated.'
-                          'It is highly recommended to use TensorFlow 2.x.\n',
-                          extra={'is_warning': True})
+            log.error('\t\nSupport of the Model Optimizer tool in TensorFlow 1.x environment is deprecated.'
+                      'It is highly recommended to use TensorFlow 2.x.\n',
+                      extra={'is_warning': True})
 
     file_name = "requirements{}.txt".format(framework_suffix)
 
@@ -284,10 +282,9 @@ def check_requirements(framework=None, silent=True):
                 not_satisfied_versions.append((name, 'not installed', ''))
             continue
         except Exception as e:
-            if not silent:
-                log.error('Error happened while importing {} module. It may happen due to unsatisfied requirements of '
-                          'that module. Please run requirements installation script once more.\n'
-                          'Details on module importing failure: {}'.format(name, e))
+            log.error('Error happened while importing {} module. It may happen due to unsatisfied requirements of '
+                      'that module. Please run requirements installation script once more.\n'
+                      'Details on module importing failure: {}'.format(name, e))
             not_satisfied_versions.append((name, 'package error', 'required: {} {}'.format(key, required_version)))
             continue
 
@@ -307,9 +304,7 @@ def check_requirements(framework=None, silent=True):
         for module in not_satisfied_versions:
             missed_modules_message += "\t{}: {}, {}\n".format(module[0], module[1], module[2])
         if exit_code:
-            if not silent:
-                log.error(message.format(missed_modules_message, helper_command))
+            log.error(message.format(missed_modules_message, helper_command))
         else:
-            if not silent:
-                log.error(message.format(missed_modules_message, helper_command), extra={'is_warning': True})
+            log.error(message.format(missed_modules_message, helper_command), extra={'is_warning': True})
     return exit_code

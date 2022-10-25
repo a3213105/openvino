@@ -9,7 +9,9 @@
 namespace ov {
 namespace op {
 namespace util {
-std::tuple<element::Type, PartialShape> validate_and_infer_elementwise_args(Node* node);
+std::tuple<element::Type, PartialShape> validate_and_infer_elementwise_args(
+    Node* node,
+    const op::AutoBroadcastSpec& autob = op::AutoBroadcastSpec());
 }
 }  // namespace op
 }  // namespace ov

@@ -23,8 +23,9 @@ ov::op::util::BinaryElementwiseArithmetic::BinaryElementwiseArithmetic(const Out
     : Op({arg0, arg1}),
       m_autob(autob) {}
 
-void ov::op::util::BinaryElementwiseArithmetic::validate_and_infer_elementwise_arithmetic() {
-    auto args_et_pshape = op::util::validate_and_infer_elementwise_args(this);
+void ov::op::util::BinaryElementwiseArithmetic::validate_and_infer_elementwise_arithmetic(
+    const op::AutoBroadcastSpec& autob) {
+    auto args_et_pshape = op::util::validate_and_infer_elementwise_args(this, autob);
     element::Type& args_et = std::get<0>(args_et_pshape);
     PartialShape& args_pshape = std::get<1>(args_et_pshape);
 
@@ -38,12 +39,12 @@ void ov::op::util::BinaryElementwiseArithmetic::validate_and_infer_elementwise_a
 }
 
 void ov::op::util::BinaryElementwiseArithmetic::validate_and_infer_types() {
-    OV_OP_SCOPE(v0_util_BinaryElementwiseArithmetic_validate_and_infer_types);
-    validate_and_infer_elementwise_arithmetic();
+    NGRAPH_OP_SCOPE(v0_util_BinaryElementwiseArithmetic_validate_and_infer_types);
+    validate_and_infer_elementwise_arithmetic(m_autob);
 }
 
 bool ov::op::util::BinaryElementwiseArithmetic::visit_attributes(AttributeVisitor& visitor) {
-    OV_OP_SCOPE(v0_util_BinaryElementwiseArithmetic_visit_attributes);
+    NGRAPH_OP_SCOPE(v0_util_BinaryElementwiseArithmetic_visit_attributes);
     visitor.on_attribute("auto_broadcast", m_autob);
     return true;
 }
