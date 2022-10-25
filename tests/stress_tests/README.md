@@ -38,7 +38,7 @@ run the commands below:
 ``` bash
 source <OpenVINO_install_dir>/setupvars.sh
 mkdir build && cd build
-cmake .. && cmake --build . -j8
+cmake .. && make -j$(nproc)
 ```
 
 ### Preparing Test Data

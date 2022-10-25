@@ -2,12 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-#if defined(_MSC_VER)
-#    pragma warning(push)
-// Protobuf: conversion from 'XXX' to 'YYY', possible loss of data
-#    pragma warning(disable : 4244)
-#endif
-
 #include "core/transform.hpp"
 
 #include <onnx/defs/function.h>
@@ -122,7 +116,3 @@ void ngraph::onnx_import::transform::fixup_legacy_operators(ONNX_NAMESPACE::Mode
         }
     }
 }
-
-#if defined(_MSC_VER)
-#    pragma warning(pop)
-#endif

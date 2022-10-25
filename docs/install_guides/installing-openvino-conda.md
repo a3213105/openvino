@@ -1,4 +1,6 @@
-# Install OpenVINO™ Runtime from Anaconda Cloud
+# Install Intel® Distribution of OpenVINO™ toolkit from Anaconda Cloud
+
+Currently only the following ways are provided to install OpenVINO™:
 
 * [Install OpenVINO Runtime from an Archive File](installing-openvino-from-archive-linux.md)
 * [Install OpenVINO from PyPI](installing-openvino-pip.md)

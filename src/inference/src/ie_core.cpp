@@ -1995,35 +1995,11 @@ void Core::add_extension(const ie::IExtensionPtr& extension) {
 }
 
 void Core::add_extension(const std::string& library_path) {
-    try {
-        add_extension(ov::detail::load_extensions(library_path));
-    } catch (const std::runtime_error&) {
-        try {
-            // Try to load legacy extension
-            const auto extension_ptr = std::make_shared<InferenceEngine::Extension>(library_path);
-            OPENVINO_SUPPRESS_DEPRECATED_START
-            add_extension(extension_ptr);
-            OPENVINO_SUPPRESS_DEPRECATED_END
-        } catch (const std::runtime_error&) {
-            throw ov::Exception("Cannot add extension. Cannot find entry point to the extension library");
-        }
-    }
+    add_extension(ov::detail::load_extensions(library_path));
 }
 #ifdef OPENVINO_ENABLE_UNICODE_PATH_SUPPORT
 void Core::add_extension(const std::wstring& library_path) {
-    try {
-        add_extension(ov::detail::load_extensions(library_path));
-    } catch (const std::runtime_error&) {
-        try {
-            // Try to load legacy extension
-            const auto extension_ptr = std::make_shared<InferenceEngine::Extension>(library_path);
-            OPENVINO_SUPPRESS_DEPRECATED_START
-            add_extension(extension_ptr);
-            OPENVINO_SUPPRESS_DEPRECATED_END
-        } catch (const std::runtime_error&) {
-            throw ov::Exception("Cannot add extension. Cannot find entry point to the extension library");
-        }
-    }
+    add_extension(ov::detail::load_extensions(library_path));
 }
 #endif
 

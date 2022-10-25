@@ -9,11 +9,12 @@ cmake_minimum_required (VERSION 3.13)
 project (ie_python_api)
 
 if(NOT DEFINED OpenVINO_SOURCE_DIR)
-    find_package(OpenVINODeveloperPackage REQUIRED
-                 PATHS "${InferenceEngineDeveloperPackage_DIR}")
+    find_package(InferenceEngineDeveloperPackage REQUIRED)
 endif()
 
 option(ENABLE_CONDA_FOLDER "Create output folder with conda python bindings" OFF)
+
+set(PYTHON_BRIDGE_CPACK_PATH "${OV_CPACK_PYTHONDIR}")
 
 if(UNIX)
     # cython generated files requires public visibility. Force visibility required.
@@ -67,5 +68,5 @@ endif()
 ie_cpack_add_component(${PYTHON_COMPONENT} HIDDEN)
 
 install(FILES requirements.txt
-        DESTINATION ${OV_CPACK_PYTHONDIR}
+        DESTINATION ${PYTHON_BRIDGE_CPACK_PATH}/${pyversion}
         COMPONENT ${PYTHON_COMPONENT})

@@ -16,8 +16,7 @@ using namespace GNATestIRs;
 
 class I8QuantisationTest : public GNATest<> {
  protected:
-    ModelQuantizer q;
-    LayersQuantizer lc = LayersQuantizer (1.0f);
+    LayersQuantizer<QuantI8> lc = LayersQuantizer<QuantI8> (1.0f);
 
     InferenceEngine::CNNLayerPtr  quantize (InferenceEngine::CNNLayerPtr lp) {
         auto newLayer = InferenceEngine::injectData<QuantizedLayerParams>(lp);
@@ -64,6 +63,8 @@ TEST_F(I8QuantisationTest, canQuantizeActivation){
 }
 
 TEST_F(I8QuantisationTest, inputPrecisionIs16Bits){
+    ModelQuantizer<QuantI8> q;
+
     auto weights = make_shared_blob<uint8_t >({ Precision::U8, {440}, C });
     weights->allocate();
     fillWeights(weights);
@@ -79,6 +80,8 @@ TEST_F(I8QuantisationTest, inputPrecisionIs16Bits){
 }
 
 TEST_F(I8QuantisationTest, FCDimensionIs1){
+    ModelQuantizer<QuantI8> q;
+
     auto weights = make_shared_blob<uint8_t >({ Precision::U8, {440}, C });
     weights->allocate();
     fillWeights(weights);
@@ -90,6 +93,8 @@ TEST_F(I8QuantisationTest, FCDimensionIs1){
 }
 
 TEST_F(I8QuantisationTest, outputAffinePrecisionIs32Bits){
+    ModelQuantizer<QuantI8> q;
+
     auto weights = make_shared_blob<uint8_t >({ Precision::U8, {440}, C });
     weights->allocate();
     fillWeights(weights);
@@ -105,6 +110,8 @@ TEST_F(I8QuantisationTest, outputAffinePrecisionIs32Bits){
 }
 
 TEST_F(I8QuantisationTest, fp16tofp32_on_fullyConnected_model) {
+    ModelQuantizer<QuantI8> q;
+
     auto weights = make_shared_blob<uint8_t>({ Precision::U8, {220}, Layout::C });
     weights->allocate();
     fillWeights(weights);
@@ -116,6 +123,8 @@ TEST_F(I8QuantisationTest, fp16tofp32_on_fullyConnected_model) {
 }
 
 TEST_F(I8QuantisationTest, LSTMCell_quantize) {
+    ModelQuantizer<QuantI8> q;
+
     auto weights = make_shared_blob<uint8_t>({ Precision::U8, {33664}, C });
     weights->allocate();
     fillWeights(weights);
@@ -127,6 +136,8 @@ TEST_F(I8QuantisationTest, LSTMCell_quantize) {
 }
 
 TEST_F(I8QuantisationTest, LSTMCell_unaligned_quantize) {
+    ModelQuantizer<QuantI8> q;
+
     auto weights = make_shared_blob<uint8_t>({ Precision::U8, {3480}, C });
     weights->allocate();
     fillWeights(weights);
@@ -138,6 +149,8 @@ TEST_F(I8QuantisationTest, LSTMCell_unaligned_quantize) {
 }
 
 TEST_F(I8QuantisationTest, TI_quantize) {
+    ModelQuantizer<QuantI8> q;
+
     auto weights = make_shared_blob<uint8_t>({ Precision::U8, {249748}, C });
     weights->allocate();
     fillWeights(weights);

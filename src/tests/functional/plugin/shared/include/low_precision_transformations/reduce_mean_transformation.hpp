@@ -14,9 +14,6 @@ class ReduceMeanOperation {
 public:
     std::vector<int64_t> constantValues;
     bool keepDims;
-
-    ReduceMeanOperation();
-    ReduceMeanOperation(const std::vector<int64_t>& constantValues, const bool keepDims);
 };
 
 class ReduceMeanTransformationParam {

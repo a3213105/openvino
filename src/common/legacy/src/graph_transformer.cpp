@@ -222,7 +222,6 @@ static std::vector<std::string> skipConstInfer = {
     "Copy",
     "FullyConnected",
     "Squeeze",
-    "Split",
     "TensorIterator",
     "LSTMSequence",
     "MVN"};

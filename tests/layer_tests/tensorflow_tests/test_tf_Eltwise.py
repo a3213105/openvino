@@ -16,6 +16,10 @@ class TestEltwise(CommonTFLayerTest):
 
         """
 
+        #
+        #   Create Tensorflow model
+        #
+
         import tensorflow as tf
 
         tf.compat.v1.reset_default_graph()
@@ -53,8 +57,7 @@ class TestEltwise(CommonTFLayerTest):
     test_data = []
     for operation in ['sum', 'max', 'mul']:
         test_data.extend([dict(shape=[1, 224], operation=operation),
-                          pytest.param(dict(shape=[1, 224, 224], operation=operation),
-                                       marks=pytest.mark.precommit_tf_fe),
+                          dict(shape=[1, 224, 224], operation=operation),
                           dict(shape=[1, 3, 224, 224], operation=operation)])
 
     @pytest.mark.parametrize("params", test_data)

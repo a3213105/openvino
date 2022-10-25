@@ -7,8 +7,7 @@ cmake_minimum_required (VERSION 3.13)
 project (pyngraph)
 
 if(NOT DEFINED OpenVINO_SOURCE_DIR)
-    find_package(OpenVINODeveloperPackage QUIET
-                 PATHS "${InferenceEngineDeveloperPackage_DIR}")
+    find_package(InferenceEngineDeveloperPackage QUIET)
     find_package(OpenVINO REQUIRED)
 endif()
 
@@ -71,18 +70,18 @@ endif()
 
 # Install
 
-if(OpenVINO_SOURCE_DIR OR OpenVINODeveloperPackage_FOUND)
+if(OpenVINO_SOURCE_DIR OR InferenceEngineDeveloperPackage_FOUND)
     ie_python_minimal_api(_${PROJECT_NAME})
     add_clang_format_target(_${PROJECT_NAME}_clang FOR_TARGETS _${PROJECT_NAME})
 
     ie_cpack_add_component(${OV_CPACK_COMP_PYTHON_NGRAPH}_${pyversion} HIDDEN)
 
     install(TARGETS _${PROJECT_NAME}
-            DESTINATION ${OV_CPACK_PYTHONDIR}
+            DESTINATION ${OV_CPACK_PYTHONDIR}/${pyversion}
             COMPONENT ${OV_CPACK_COMP_PYTHON_NGRAPH}_${pyversion})
 
     install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/../ngraph
-            DESTINATION ${OV_CPACK_PYTHONDIR}
+            DESTINATION ${OV_CPACK_PYTHONDIR}/${pyversion}
             COMPONENT ${OV_CPACK_COMP_PYTHON_NGRAPH}_${pyversion}
             USE_SOURCE_PERMISSIONS)
 

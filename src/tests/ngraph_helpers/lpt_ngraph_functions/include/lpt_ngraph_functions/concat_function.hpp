@@ -17,15 +17,6 @@ namespace subgraph {
 
 class ConcatFunction {
 public:
-    static std::shared_ptr<ov::Model> get(
-        const ov::element::Type inputPrecision,
-        const ov::element::Type deqPrecision,
-        const std::vector<ov::PartialShape>& inputShapes,
-        const std::vector<DequantizationOperations>& dequantizationsBefore,
-        const std::int64_t concatAxis,
-        const ov::element::Type precisionAfter = ov::element::undefined,
-        const DequantizationOperations& dequantizationAfter = {});
-
     static std::shared_ptr<ngraph::Function> getOriginal(
         const ngraph::element::Type precision,
         const ngraph::PartialShape& inputShape,
@@ -115,15 +106,6 @@ public:
         const ngraph::Shape& reshapeOutputShape,
         const FakeQuantizeOnData& fqOnData1,
         const FakeQuantizeOnData& fqOnData2);
-
-    static std::shared_ptr<ov::Model> getReference(
-        const ov::element::Type dequantizationPrecision,
-        const ov::element::Type precisionBefore,
-        const std::vector<ov::PartialShape>& inputShapes,
-        const std::vector<DequantizationOperations>& dequantizationsBefore,
-        const ov::element::Type precisionAfter,
-        const DequantizationOperations& dequantizationAfter,
-        const std::int64_t concatAxis);
 
     static std::shared_ptr<ngraph::Function> getReference(
         const ngraph::element::Type precision,

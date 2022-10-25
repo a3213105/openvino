@@ -86,16 +86,10 @@ public:
 namespace detail {
 
 attach_detection_output_impl::attach_detection_output_impl() {
-    std::vector<data_types> dt = {
-        data_types::f32,
-        data_types::f16,
-    };
-    std::vector<format::type> fmt = {
-        format::bfyx,
-        format::bs_fs_yx_bsv16_fsv32,
-        format::bs_fs_zyx_bsv16_fsv32,
-    };
-    implementation_map<detection_output>::add(impl_types::ocl, detection_output_impl::create, dt, fmt);
+    implementation_map<detection_output>::add(impl_types::ocl, detection_output_impl::create, {
+        std::make_tuple(data_types::f32, format::bfyx),
+        std::make_tuple(data_types::f16, format::bfyx)
+    });
 }
 
 }  // namespace detail

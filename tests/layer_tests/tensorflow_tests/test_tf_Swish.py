@@ -18,6 +18,10 @@ class TestSwish(CommonTFLayerTest):
 
         """
 
+        #
+        #   Create Tensorflow model
+        #
+
         import tensorflow as tf
 
         tf.reset_default_graph()

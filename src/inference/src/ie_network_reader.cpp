@@ -255,14 +255,15 @@ CNNNetwork convert_to_cnnnetwork(std::shared_ptr<ngraph::Function>& function,
                                  bool newAPI,
                                  bool frontendMode = false) {
     auto& rt_info = function->get_rt_info();
-    const bool is_ir = function->has_rt_info("version");
+    const auto it = rt_info.find("version");
+    const bool is_ir = it != rt_info.end();
 
     // only for IR cases we need preprocessing or postprocessing steps
     if (is_ir) {
         using namespace ov::preprocess;
         PrePostProcessor prepost(function);
 
-        const int64_t ir_version = function->get_rt_info<int64_t>("version");
+        const int64_t ir_version = it->second.as<int64_t>();
 
         if (ir_version == 10 && newAPI) {
             std::unordered_map<std::string, std::shared_ptr<ov::descriptor::Tensor>> leaf_names;

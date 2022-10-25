@@ -45,7 +45,7 @@ function(add_common_utils ADD_TARGET_NAME)
         target_compile_definitions(${ADD_TARGET_NAME} PUBLIC USE_BOOST_RE)
 
         debug_message(STATUS "Adding boost dependency")
-        if (CMAKE_VERBOSE_MAKEFILE)
+        if (VERBOSE_BUILD)
             set(Boost_DEBUG on)
         endif ()
         find_package(Boost REQUIRED COMPONENTS regex)
