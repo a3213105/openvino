@@ -590,6 +590,14 @@ protected:
         this->type = type;
     }
 
+    virtual std::string getDNNlString() {
+        if (prim) {
+            return (*prim).impl_info();
+        }
+
+        return "";
+    }
+
     virtual size_t getMaxBatch() const;
 
 

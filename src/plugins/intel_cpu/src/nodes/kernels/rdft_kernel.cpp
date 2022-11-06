@@ -418,7 +418,7 @@ void jit_dft_kernel_f32<isa>::uni_vpermilps(const Xbyak::Ymm& x, const Xbyak::Op
 template <cpu_isa_t isa>
 void jit_dft_kernel_f32<isa>::load_and_broadcast_every_other_elem(const Xbyak::Zmm& x, const Xbyak::RegExp& reg_exp, const Xbyak::Xmm& tmp) {
     for (int i = 0; i < 4; i++) {
-        movq(tmp, ptr[reg_exp + type_size * i * 2]);
+        uni_vmovq(tmp, ptr[reg_exp + type_size * i * 2]);
         shufps(tmp, tmp, 0b01010000);
         vinsertf32x4(x, x, tmp, i);
     }
@@ -427,7 +427,7 @@ void jit_dft_kernel_f32<isa>::load_and_broadcast_every_other_elem(const Xbyak::Z
 template <cpu_isa_t isa>
 void jit_dft_kernel_f32<isa>::load_and_broadcast_every_other_elem(const Xbyak::Ymm& x, const Xbyak::RegExp& reg_exp, const Xbyak::Xmm& tmp) {
     for (int i = 0; i < 2; i++) {
-        movq(tmp, ptr[reg_exp + type_size * i * 2]);
+        uni_vmovq(tmp, ptr[reg_exp + type_size * i * 2]);
         shufps(tmp, tmp, 0b01010000);
         vinsertf128(x, x, tmp, i);
     }
@@ -435,7 +435,7 @@ void jit_dft_kernel_f32<isa>::load_and_broadcast_every_other_elem(const Xbyak::Y
 
 template <cpu_isa_t isa>
 void jit_dft_kernel_f32<isa>::load_and_broadcast_every_other_elem(const Xbyak::Xmm& x, const Xbyak::RegExp& reg_exp, const Xbyak::Xmm& tmp) {
-    movq(x, ptr[reg_exp]);
+    uni_vmovq(x, ptr[reg_exp]);
     shufps(x, x, 0b01010000);
 }
 
