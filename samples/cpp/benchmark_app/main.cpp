@@ -825,8 +825,12 @@ int main(int argc, char* argv[]) {
             // ----------------- 7. Loading the model to the device
             // --------------------------------------------------------
             next_step();
+	    ov::AnyMap dconfig;
+            if (FLAGS_no_snippet) {
+                dconfig["NO_SNIPPET"] = "YES";
+            }
             startTime = Time::now();
-            compiledModel = core.compile_model(model, device_name);
+            compiledModel = core.compile_model(model, device_name, dconfig);
             duration_ms = get_duration_ms_till_now(startTime);
             slog::info << "Compile model took " << double_to_string(duration_ms) << " ms" << slog::endl;
             if (statistics)

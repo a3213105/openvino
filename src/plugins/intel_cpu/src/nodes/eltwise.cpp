@@ -846,24 +846,24 @@ private:
                 break;
             case Precision::I16:
                 uni_vpackssdw(xmm_dst, xmm_dst, xmm_dst);
-                movq(reg_tmp_64, xmm_dst);
+                uni_vmovq(reg_tmp_64, xmm_dst);
                 mov(op, reg_tmp_8);
                 break;
             case Precision::U16:
                 uni_vpackusdw(xmm_dst, xmm_dst, xmm_dst);
-                movq(reg_tmp_64, xmm_dst);
+                uni_vmovq(reg_tmp_64, xmm_dst);
                 mov(op, reg_tmp_8);
                 break;
             case Precision::I8:
                 uni_vpackssdw(xmm_dst, xmm_dst, xmm_dst);
                 uni_vpacksswb(xmm_dst, xmm_dst, xmm_dst);
-                movq(reg_tmp_64, xmm_dst);
+                uni_vmovq(reg_tmp_64, xmm_dst);
                 mov(op, reg_tmp_8);
                 break;
             case Precision::U8:
                 uni_vpackusdw(xmm_dst, xmm_dst, xmm_dst);
                 uni_vpackuswb(xmm_dst, xmm_dst, xmm_dst);
-                movq(reg_tmp_64, xmm_dst);
+                uni_vmovq(reg_tmp_64, xmm_dst);
                 mov(op, reg_tmp_8);
                 break;
             default:

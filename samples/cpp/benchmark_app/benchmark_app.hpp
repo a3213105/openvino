@@ -26,6 +26,8 @@
 /// @brief message for help argument
 static const char help_message[] = "Print a usage message";
 
+static const char no_snippet_message[] = "Optional. enable no snippet.";
+
 /// @brief message for images argument
 static const char input_message[] =
     "Optional. Path to a folder with images and/or binaries or to specific image or binary file.\n"
@@ -394,6 +396,7 @@ DEFINE_string(scale_values, "", scale_values_message);
 /// @brief Define flag for inference only mode <br>
 DEFINE_bool(inference_only, true, inference_only_message);
 
+DEFINE_bool(no_snippet, false, no_snippet_message);
 /**
  * @brief This function show a help message
  */
@@ -446,4 +449,5 @@ static void show_usage() {
     std::cout << "    -mean_values [R,G,B]      " << mean_values_message << std::endl;
     std::cout << "    -scale_values [R,G,B]     " << scale_values_message << std::endl;
     std::cout << "    -inference_only           " << inference_only_message << std::endl;
+    std::cout << "    -no_snippet               " << no_snippet_message << std::endl;
 }

@@ -257,7 +257,7 @@ private:
             case memory::data_type::f32:
             case memory::data_type::s32:
                 if (scalar_store) {
-                    movq(reg_tmp_64, xmm_dst);
+                    uni_vmovq(reg_tmp_64, xmm_dst);
                     mov(op, reg_tmp_32);
                 } else {
                     uni_vmovups(op, vmm_dst);
@@ -272,7 +272,7 @@ private:
                 uni_vpacksswb(xmm_dst, xmm_dst, xmm_dst);
 
                 if (scalar_store) {
-                    movq(reg_tmp_64, xmm_dst);
+                    uni_vmovq(reg_tmp_64, xmm_dst);
                     mov(op, reg_tmp_8);
                 } else {
                     if (isa != x64::sse41)
@@ -291,7 +291,7 @@ private:
                 uni_vpackuswb(xmm_dst, xmm_dst, xmm_dst);
 
                 if (scalar_store) {
-                    movq(reg_tmp_64, xmm_dst);
+                    uni_vmovq(reg_tmp_64, xmm_dst);
                     mov(op, reg_tmp_8);
                 } else {
                     if (isa != x64::sse41)

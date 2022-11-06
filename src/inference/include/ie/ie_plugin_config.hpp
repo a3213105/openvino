@@ -363,6 +363,8 @@ DECLARE_CONFIG_KEY(DYN_BATCH_LIMIT);
  */
 DECLARE_CONFIG_KEY(DYN_BATCH_ENABLED);
 
+DECLARE_CONFIG_KEY(NO_SNIPPET);
+
 /**
  * @brief This key directs the plugin to load a configuration file.
  *

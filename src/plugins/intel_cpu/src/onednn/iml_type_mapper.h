@@ -38,6 +38,8 @@ enum impl_desc_type {
     // sparse
     sparse = 1<<24,
 
+    vnni   = 1<<24,
+    core   = 1<<25,
     // real types
     ref_any             = ref  | any,
 
@@ -47,6 +49,9 @@ enum impl_desc_type {
     gemm_avx2           = gemm | avx2,
     gemm_avx            = gemm | avx,
     gemm_sse42          = gemm | sse42,
+    gemm_avx512_core    = gemm | avx512 | core,
+    gemm_avx512_vnni    = gemm | avx512 | core | vnni,
+    gemm_avx512_amx     = gemm | avx512 | amx,
 
     jit_gemm            = jit | gemm,
 
@@ -56,6 +61,8 @@ enum impl_desc_type {
     jit_avx             = jit  | avx,
     jit_sse42           = jit  | sse42,
     jit_uni             = jit  | uni,
+    jit_avx512_core     = jit  | avx512 | core,
+    jit_avx512_vnni     = jit  | avx512 | core | vnni,
     jit_avx512_amx      = jit  | avx512 | amx,
 
     jit_avx512_1x1      = jit  | avx512 | _1x1,
@@ -63,6 +70,9 @@ enum impl_desc_type {
     jit_avx_1x1         = jit  | avx    | _1x1,
     jit_sse42_1x1       = jit  | sse42  | _1x1,
     jit_uni_1x1         = jit  | uni    | _1x1,
+    jit_avx512_core_1x1 = jit  | avx512 | core | _1x1,
+    jit_avx512_vnni_1x1 = jit  | avx512 | core | vnni | _1x1,
+
     jit_avx512_amx_1x1  = jit  | avx512 | amx | _1x1,
 
     jit_avx512_dw       = jit  | avx512 | _dw,
@@ -70,6 +80,9 @@ enum impl_desc_type {
     jit_avx_dw          = jit  | avx    | _dw,
     jit_sse42_dw        = jit  | sse42  | _dw,
     jit_uni_dw          = jit  | uni    | _dw,
+    jit_avx512_core_dw  = jit  | avx512 | core | _dw,
+    jit_avx512_vnni_dw  = jit  | avx512 | core | vnni | _dw,
+
     jit_avx512_amx_dw   = jit  | avx512 | amx | _dw,
 
     brgconv_avx512      = brgconv  | avx512,
@@ -77,6 +90,8 @@ enum impl_desc_type {
     brgconv_avx         = brgconv  | avx,
     brgconv_sse42       = brgconv  | sse42,
     brgconv_uni         = brgconv  | uni,
+    brgconv_avx512_core = brgconv  | avx512 | core,
+    brgconv_avx512_vnni = brgconv  | avx512 | core | vnni,
     brgconv_avx512_amx  = brgconv  | avx512 | amx,
 
     brgconv_avx512_1x1      = brgconv  | avx512 | _1x1,
@@ -84,6 +99,9 @@ enum impl_desc_type {
     brgconv_avx_1x1         = brgconv  | avx | _1x1,
     brgconv_sse42_1x1       = brgconv  | sse42 | _1x1,
     brgconv_uni_1x1         = brgconv  | uni | _1x1,
+    brgconv_avx512_core_1x1 = brgconv  | avx512 | core | _1x1,
+    brgconv_avx512_vnni_1x1 = brgconv  | avx512 | core | vnni | _1x1,
+
     brgconv_avx512_amx_1x1  = brgconv  | avx512 | amx | _1x1,
 
     brgemm_avx512      = brgemm  | avx512,
@@ -91,6 +109,8 @@ enum impl_desc_type {
     brgemm_avx         = brgemm  | avx,
     brgemm_sse42       = brgemm  | sse42,
     brgemm_uni         = brgemm  | uni,
+    brgemm_avx512_core = brgemm  | avx512 | core,
+    brgemm_avx512_vnni = brgemm  | avx512 | core | vnni,
     brgemm_avx512_amx  = brgemm  | avx512 | amx,
     brgemm_sparse_avx512_amx = brgemm | sparse | avx512 | amx,
 };

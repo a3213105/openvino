@@ -396,6 +396,8 @@ std::string Node::getPrimitiveDescriptorType() {
         str_type += t;
     };
 
+    str_type = this->getDNNlString();
+    if (str_type.empty()) {
 #define SEARCH_TYPE(_type)                                          \
     if ((type & impl_desc_type::_type) == impl_desc_type::_type)    \
         add_type(#_type)
@@ -409,6 +411,8 @@ std::string Node::getPrimitiveDescriptorType() {
     SEARCH_TYPE(ref);
 
     SEARCH_TYPE(avx512);
+    SEARCH_TYPE(core);
+    SEARCH_TYPE(vnni);
     SEARCH_TYPE(amx);
     SEARCH_TYPE(avx2);
     SEARCH_TYPE(avx);
@@ -421,11 +425,13 @@ std::string Node::getPrimitiveDescriptorType() {
     SEARCH_TYPE(sparse);
     SEARCH_TYPE(_dw);
     SEARCH_TYPE(_1x1);
+    }
 
     if (type == impl_desc_type::unknown)
         str_type = "unknown";
     else if (str_type.empty())
         str_type = "undef";
+
 
     // adding layer precision to the performance counters as one of the token
     // currently we treat a layer executing in int8 mode if its input is I8 or U8. if input is U8, we still
