@@ -34,6 +34,7 @@ class DnnlExecutor {
                return  (*execPrim).impl_info();
             return "";
         }
+        Primitive getExecPrim() const;
 
     protected:
         DnnlExecutor() = default;
