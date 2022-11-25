@@ -35,13 +35,23 @@ static const size_t progressBarDefaultTotalCount = 1000;
 bool parse_and_check_command_line(int argc, char* argv[]) {
     // ---------------------------Parsing and validating input
     // arguments--------------------------------------
-    slog::info << "Parsing input parameters" << slog::endl;
+    //slog::info << "Parsing input parameters" << slog::endl;
     gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
     if (FLAGS_help || FLAGS_h) {
         show_usage();
         showAvailableDevices();
         return false;
     }
+
+    if (FLAGS_info) {
+        slog::info << ov::get_openvino_version();
+        ov::Core core;
+        std::vector<std::string> devices = core.get_available_devices();
+        for (const auto& device : devices) {
+            slog::info << core.get_versions(device);
+        }
+        return false;
+    }    
 
     if (FLAGS_m.empty()) {
         show_usage();

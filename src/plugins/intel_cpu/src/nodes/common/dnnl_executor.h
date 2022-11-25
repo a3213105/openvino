@@ -41,11 +41,6 @@ class DnnlExecutor {
         dnnl::memory::desc getWeightDesc() const;
         dnnl::memory::desc getDstDesc() const;
         impl_desc_type getImplementationType() const;
-        virtual std::string getDNNlString() {
-            if (execPrim)
-               return  (*execPrim).impl_info();
-            return "";
-        }
 
     protected:
         DnnlExecutor() = default;
