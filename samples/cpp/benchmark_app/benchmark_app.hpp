@@ -26,7 +26,7 @@
 /// @brief message for help argument
 static const char help_message[] = "Print a usage message";
 
-static const char no_snippet_message[] = "Optional. enable no snippet.";
+static const char info_message[] = "Print a build info message";
 
 /// @brief message for images argument
 static const char input_message[] =
@@ -266,8 +266,12 @@ static constexpr char inference_only_message[] =
     " To enable full mode for static models pass \"false\" value to this argument:"
     " ex. \"-inference_only=false\".\n";
 
+static const char no_snippet_message[] = "Optional. enable no snippet.";
+
 /// @brief Define flag for showing help message <br>
 DEFINE_bool(h, false, help_message);
+
+DEFINE_bool(info, false, info_message);
 
 /// @brief Declare flag for showing help message <br>
 DECLARE_bool(help);
@@ -406,6 +410,7 @@ static void show_usage() {
     std::cout << "Options:" << std::endl;
     std::cout << std::endl;
     std::cout << "    -h, --help                " << help_message << std::endl;
+    std::cout << "    -info                     " << info_message << std::endl;
     std::cout << "    -m \"<path>\"               " << model_message << std::endl;
     std::cout << "    -i \"<path>\"               " << input_message << std::endl;
     std::cout << "    -d \"<device>\"             " << target_device_message << std::endl;
