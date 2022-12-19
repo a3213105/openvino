@@ -367,7 +367,9 @@ bool RNN::created() const {
 
 void RNN::configurePortDataTypes() {
     inDataTypes[xIdx] = DnnlExtensionUtils::IEPrecisionToDataType(getOriginalInputPrecisionAtPort(0));
-    inDataTypes[hIdx] = DnnlExtensionUtils::IEPrecisionToDataType(getOriginalInputPrecisionAtPort(1));
+    inDataTypes[hIdx] = DnnlExtensionUtils::IEPrecisionToDataType(getOriginalInputPrecisionAtPort(0));
+    //add by sgui for BF16 inference
+    //inDataTypes[hIdx] = DnnlExtensionUtils::IEPrecisionToDataType(getOriginalInputPrecisionAtPort(1));
     if (haveCellState(cell_type))
         inDataTypes[cIdx] = memory::data_type::f32; // @todo bf16 is also allowed, should be tried out
     if (!is_cell)
@@ -773,7 +775,6 @@ void RNN::copyWeightsData() {
 
 void RNN::fillDescs() {
     descs.clear();
-
     switch (cell_type) {
         case dnnl::algorithm::vanilla_rnn: {
             DnnlDesriptor desc(std::make_shared<vanilla_rnn_forward::desc>(

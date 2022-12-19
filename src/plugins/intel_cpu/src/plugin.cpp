@@ -873,9 +873,9 @@ Engine::LoadExeNetworkImpl(const InferenceEngine::CNNNetwork &network, const std
     const auto& dynamicBatchProp = config.find(InferenceEngine::PluginConfigParams::KEY_DYN_BATCH_ENABLED);
     const bool enableDynamicBatch = (dynamicBatchProp != config.end() && dynamicBatchProp->second == PluginConfigParams::YES)
             || engConfig.enableDynamicBatch;
-//    const bool noSnippet = config.find(InferenceEngine::PluginConfigParams::KEY_NO_SNIPPET) != config.end();
-//    const bool enableSnippets = !(enableModelCache || enableDynamicBatch || enableBF16 || noSnippet);
-    const bool enableSnippets = !(enableModelCache || enableDynamicBatch);
+    const bool noSnippet = config.find(InferenceEngine::PluginConfigParams::KEY_NO_SNIPPET) != config.end();
+    const bool enableSnippets = !(enableModelCache || enableDynamicBatch || enableBF16 || noSnippet);
+//    const bool enableSnippets = !(enableModelCache || enableDynamicBatch);
     auto nGraphFunc = clonedNetwork.getFunction();
 
     DEBUG_LOG(PrintableModel(*nGraphFunc, "org_"));
