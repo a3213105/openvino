@@ -35,6 +35,8 @@ enum impl_desc_type {
     reorder = 1<<22,
     // winograd
     winograd = 1<<23,
+    // sparse
+    sparse = 1<<24,
 
     vnni   = 1<<24,
     core   = 1<<25,
@@ -110,6 +112,7 @@ enum impl_desc_type {
     brgemm_avx512_core = brgemm  | avx512 | core,
     brgemm_avx512_vnni = brgemm  | avx512 | core | vnni,
     brgemm_avx512_amx  = brgemm  | avx512 | amx,
+    brgemm_sparse_avx512_amx = brgemm | sparse | avx512 | amx,
 };
 
 const char * impl_type_to_string(impl_desc_type type);

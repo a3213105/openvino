@@ -169,6 +169,7 @@ public:
                     struct reorder_t {
                         uint32_t winograd : 1;
                         uint32_t rotate : 1;
+                        uint32_t surface_input : 1;
                     } reorder;
                     struct eltwise_t {
                         uint32_t stride : 1;
@@ -292,6 +293,7 @@ public:
 
     void EnableWinogradReorder() { key.restrict.val.dedicated.reorder.winograd = 1; }
     void EnableRotateReorder() { key.restrict.val.dedicated.reorder.rotate = 1; }
+    void EnableSurfaceInputSupport() { key.restrict.val.dedicated.reorder.surface_input = 1; }
     void EnableSoftmaxDim(SoftmaxDim d);
     void EnableConcatAxis(ConcatAxis a);
     void EnableReampleType(ResampleType a);
@@ -483,6 +485,18 @@ struct FusedOpsConfiguration {
         return *this; }
     FusedOpsConfiguration& SetShuffleVarName(std::string val) { shuffle_var_name = val; return *this; }
     bool IsPostReorderFused(void) const { return orig_output_layout != DataLayout::DataLayoutCount; }
+    int GetDimIndexFromOrder(Tensor::DataChannelName val) const {
+        int dims_num = bfzyx_idx_order.size();
+        if (val == Tensor::DataChannelName::BATCH && dims_num >= 1) {
+            return 0;
+        } else if (val == Tensor::DataChannelName::FEATURE && dims_num >= 2) {
+            return 1;
+        } else if (dims_num >= 3 && dims_num - static_cast<int>(val) - 1 >= 0) {
+            return bfzyx_idx_order.size() - static_cast<int>(val) - 1;
+        } else {
+            return -1;
+        }
+    }
 };
 
 // Dependency(Input) type of fusing operation in fused node.
@@ -584,6 +598,18 @@ struct base_params : public Params {
     std::string to_string() const override;
     std::string to_cache_string_v2() const override;
     ParamsKey GetParamsKey() const override;
+
+    bool has_dynamic_inputs() const {
+        return std::any_of(inputs.begin(), inputs.end(), [](const DataTensor& t) { return t.is_dynamic(); });
+    }
+
+    bool has_dynamic_outputs() const {
+        return std::any_of(outputs.begin(), outputs.end(), [](const DataTensor& t) { return t.is_dynamic(); });
+    }
+
+    bool has_dynamic_tensors() const {
+        return has_dynamic_inputs() || has_dynamic_outputs();
+    }
 
 protected:
     explicit base_params(KernelType kt) : Params(kt, ""), inputs(1), outputs(1) {}
