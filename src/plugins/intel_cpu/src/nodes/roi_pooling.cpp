@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,7 +12,7 @@
 
 #include "ie_parallel.hpp"
 #include "utils/bfloat16.hpp"
-#include "emitters/jit_load_store_emitters.hpp"
+#include "emitters/x64/jit_load_store_emitters.hpp"
 
 #include <cpu/x64/jit_generator.hpp>
 #include <common/primitive_hashing_utils.hpp>
@@ -36,6 +36,7 @@ namespace ov {
 namespace intel_cpu {
 namespace node {
 
+#if defined(OPENVINO_ARCH_X86_64)
 template <cpu_isa_t isa>
 struct jit_uni_roi_pooling_kernel_f32 : public jit_uni_roi_pooling_kernel, public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_uni_roi_pooling_kernel_f32);
@@ -308,6 +309,7 @@ private:
         L(exit_label);
     }
 };
+#endif
 
 namespace {
 struct RoiPoolingKey {
@@ -383,8 +385,8 @@ bool ROIPooling::isSupportedOperation(const std::shared_ptr<const ngraph::Node>&
     return true;
 }
 
-ROIPooling::ROIPooling(const std::shared_ptr<ngraph::Node>& op, const dnnl::engine& eng,
-        WeightsSharing::Ptr &cache) : Node(op, eng, cache, NgraphShapeInferFactory(op, EMPTY_PORT_MASK)) {
+ROIPooling::ROIPooling(const std::shared_ptr<ngraph::Node>& op, const GraphContext::CPtr context)
+    : Node(op, context, NgraphShapeInferFactory(op, EMPTY_PORT_MASK)) {
     std::string errorMessage;
     if (!isSupportedOperation(op, errorMessage)) {
         IE_THROW(NotImplemented) << errorMessage;
@@ -393,10 +395,10 @@ ROIPooling::ROIPooling(const std::shared_ptr<ngraph::Node>& op, const dnnl::engi
     std::string errorPrefix = "ROIPooling layer with name '" + getName() + "' ";
 
     auto roiPooling = ngraph::as_type_ptr<const ngraph::opset2::ROIPooling>(op);
-    refParams.pooled_h = roiPooling->get_output_size()[0];
-    refParams.pooled_w = roiPooling->get_output_size()[1];
+    refParams.pooled_h = roiPooling->get_output_roi()[0];
+    refParams.pooled_w = roiPooling->get_output_roi()[1];
     refParams.spatial_scale = roiPooling->get_spatial_scale();
-    std::string m = roiPooling->get_method();
+    const auto& m = roiPooling->get_method();
     if (m == "max") {
         algorithm = Algorithm::ROIPoolingMax;
     } else if (m == "bilinear") {
@@ -523,7 +525,7 @@ void ROIPooling::prepareParams() {
     auto builder = [](const RoiPoolingKey& key) {
         return ROIPoolingExecutor::createROIPoolingNewExecutor(key.refParams);
     };
-    auto cache = getRuntimeCache();
+    auto cache = context->getParamsCache();
     auto result = cache->getOrCreate(key, builder);
     execPtr = result.first;
 }
@@ -532,6 +534,7 @@ template <typename T>
 class ROIPooling::ROIPoolingJitExecutor : public ROIPooling::ROIPoolingExecutor {
 public:
     ROIPoolingJitExecutor(const jit_roi_pooling_params &jpp) {
+#if defined(OPENVINO_ARCH_X86_64)
         if (mayiuse(cpu::x64::avx512_core)) {
             roi_pooling_kernel.reset(new jit_uni_roi_pooling_kernel_f32<cpu::x64::avx512_core>(jpp));
         } else if (mayiuse(cpu::x64::avx2)) {
@@ -544,6 +547,7 @@ public:
 
         if (roi_pooling_kernel)
             roi_pooling_kernel->create_ker();
+#endif
     }
 
     void exec(
@@ -891,10 +895,12 @@ std::pair<float, float> ROIPooling::ROIPoolingExecutor::getXYForBilinearMode(
 template <typename T>
 std::shared_ptr<ROIPooling::ROIPoolingExecutor> ROIPooling::ROIPoolingExecutor::makeExecutor(
     const jit_roi_pooling_params& jpp) {
+#if defined(OPENVINO_ARCH_X86_64)
     if (mayiuse(cpu::x64::sse41))
         return std::make_shared<ROIPoolingJitExecutor<T>>(jpp);
-    else
-        return std::make_shared<ROIPoolingRefExecutor<T>>(jpp);
+#endif
+
+    return std::make_shared<ROIPoolingRefExecutor<T>>(jpp);
 }
 
 bool ROIPooling::created() const {

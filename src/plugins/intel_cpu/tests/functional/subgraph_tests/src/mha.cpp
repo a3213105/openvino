@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -13,6 +13,7 @@
 #include <common_test_utils/ov_tensor_utils.hpp>
 #include "functional_test_utils/skip_tests_config.hpp"
 #include "test_utils/cpu_test_utils.hpp"
+#include "cpp_interfaces/interface/ie_internal_plugin_config.hpp"
 
 using namespace CPUTestUtils;
 using namespace ov::test;
@@ -25,6 +26,7 @@ typedef std::tuple<
         std::vector<ElementType>,  // Input precisions
         std::vector<ElementType>,  // MatMul input #0 precisions
         size_t,                    // pattern type #
+        std::string,               // Expected node
         std::string                // Device name
 > MHATuple;
 
@@ -155,8 +157,9 @@ public:
         std::vector<ElementType> inputPrecisions;
         std::vector<ElementType> matMulIn0Precisions;
         size_t patternType;
+        std::string expectedNode;
         std::string targetName;
-        std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, targetName) = obj.param;
+        std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, expectedNode, targetName) = obj.param;
         std::ostringstream results;
 
         results << "IS=(";
@@ -173,6 +176,7 @@ public:
             results << "InPRC" << std::to_string(i) << "=" << inputPrecisions[i] << "_";
         }
         results << "patternType=" << patternType;
+        results << "expect=" << expectedNode;
         results << "targetDevice=" << targetName;
 
         return results.str();
@@ -195,7 +199,8 @@ protected:
         std::vector<ElementType> inputPrecisions;
         std::vector<ElementType> matMulIn0Precisions;
         size_t patternType;
-        std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, targetDevice) = this->GetParam();
+        std::string expectedNode;
+        std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, expectedNode, targetDevice) = this->GetParam();
 
         init_input_shapes(inputShapes);
 
@@ -215,6 +220,13 @@ protected:
 
             configuration.insert({{ InferenceEngine::PluginConfigParams::KEY_ENFORCE_BF16, InferenceEngine::PluginConfigParams::YES }});
         }
+
+        // Snippets MHA tokenization has limitations to avoid performance degradations. These limitations depend on target machine.
+        // Just for testing, we disable these limitations to allow Snippets to tokenize pattern on all machines for validation.
+        if (!configuration.count(InferenceEngine::PluginConfigInternalParams::KEY_SNIPPETS_MODE)) {
+            configuration.insert({InferenceEngine::PluginConfigInternalParams::KEY_SNIPPETS_MODE,
+                                  InferenceEngine::PluginConfigInternalParams::IGNORE_CALLBACK});
+        }
     }
 };
 
@@ -223,7 +235,8 @@ TEST_P(MHATest, CompareWithRefs) {
     std::vector<ElementType> inputPrecisions;
     std::vector<ElementType> matMulIn0Precisions;
     size_t patternType;
-    std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, targetDevice) = this->GetParam();
+    std::string expectedNode;
+    std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, expectedNode, targetDevice) = this->GetParam();
 
     if (inputPrecisions[0] == ElementType::bf16 && !InferenceEngine::with_cpu_x86_bfloat16())
         GTEST_SKIP();
@@ -232,7 +245,7 @@ TEST_P(MHATest, CompareWithRefs) {
         GTEST_SKIP();
 
     run();
-    CheckNumberOfNodesWithType(compiledModel, "MHA", 1);
+    CheckNumberOfNodesWithType(compiledModel, expectedNode, 1);
 }
 
 namespace {
@@ -247,11 +260,6 @@ std::vector<std::vector<ngraph::Shape>> inputShapes = {
     {{1, 204, 13, 212},  {1, 204, 13, 212},  {1, 1, 1, 204}, {1, 204, 13, 212}},
 };
 
-std::vector<std::vector<ElementType>> inputPrecisions = {
-    { ElementType::f32, ElementType::f32, ElementType::f32, ElementType::f32 },
-    { ElementType::bf16, ElementType::bf16, ElementType::bf16, ElementType::bf16 },
-};
-
 std::vector<std::vector<ElementType>> matMulIn0Precisions = {
     {},
 };
@@ -260,14 +268,25 @@ std::vector<size_t> patternTypes = {
     0, 1
 };
 
-INSTANTIATE_TEST_SUITE_P(smoke_MHA, MHATest,
+INSTANTIATE_TEST_SUITE_P(smoke_Snippets_MHA, MHATest,
                         ::testing::Combine(
                                 ::testing::ValuesIn(static_shapes_to_test_representation(inputShapes)),
-                                ::testing::ValuesIn(inputPrecisions),
+                                ::testing::Values(std::vector<ElementType>{ ElementType::f32, ElementType::f32, ElementType::f32, ElementType::f32 }),
                                 ::testing::ValuesIn(matMulIn0Precisions),
                                 ::testing::ValuesIn(patternTypes),
+                                ::testing::Values("Subgraph"),
                                 ::testing::Values(CommonTestUtils::DEVICE_CPU)),
                         MHATest::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(smoke_MHA, MHATest,
+                         ::testing::Combine(
+                                 ::testing::ValuesIn(static_shapes_to_test_representation(inputShapes)),
+                                 ::testing::Values(std::vector<ElementType>{ ElementType::bf16, ElementType::bf16, ElementType::bf16, ElementType::bf16 }),
+                                 ::testing::ValuesIn(matMulIn0Precisions),
+                                 ::testing::ValuesIn(patternTypes),
+                                 ::testing::Values("MHA"),  // Snippets don't support BF16 MHA pattern yet
+                                 ::testing::Values(CommonTestUtils::DEVICE_CPU)),
+                         MHATest::getTestCaseName);
 
 } // namespace
 
@@ -425,7 +444,8 @@ public:
         std::vector<ElementType> matMulIn0Precisions;
         size_t patternType;
         std::string targetName;
-        std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, targetName) = obj.param;
+        std::string expectedNode;
+        std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, expectedNode, targetName) = obj.param;
         std::ostringstream results;
 
         results << "IS=(";
@@ -445,6 +465,7 @@ public:
             results << "MatMulIn0PRC" << std::to_string(i) << "=" << matMulIn0Precisions[i] << "_";
         }
         results << "patternType=" << patternType;
+        results << "expect=" << expectedNode;
         results << "targetDevice=" << targetName;
 
         return results.str();
@@ -474,7 +495,8 @@ protected:
         std::vector<ElementType> inputPrecisions;
         std::vector<ElementType> matMulIn0Precisions;
         size_t patternType;
-        std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, targetDevice) = this->GetParam();
+        std::string expectedNode;
+        std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, expectedNode, targetDevice) = this->GetParam();
 
         init_input_shapes(inputShapes);
 
@@ -485,6 +507,13 @@ protected:
         } else {
             FAIL() << "Unsupported MHA pattern type";
         }
+
+        // Snippets MHA tokenization has limitations to avoid performance degradations. These limitations depend on target machine.
+        // Just for testing, we disable these limitations to allow Snippets to tokenize pattern on all machines for validation.
+        if (!configuration.count(InferenceEngine::PluginConfigInternalParams::KEY_SNIPPETS_MODE)) {
+            configuration.insert({InferenceEngine::PluginConfigInternalParams::KEY_SNIPPETS_MODE,
+                                  InferenceEngine::PluginConfigInternalParams::IGNORE_CALLBACK});
+        }
     }
 };
 
@@ -493,7 +522,8 @@ TEST_P(MHAQuantTest, CompareWithRefs) {
     std::vector<ElementType> inputPrecisions;
     std::vector<ElementType> matMulIn0Precisions;
     size_t patternType;
-    std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, targetDevice) = this->GetParam();
+    std::string expectedNode;
+    std::tie(inputShapes, inputPrecisions, matMulIn0Precisions, patternType, expectedNode, targetDevice) = this->GetParam();
 
     if (inputPrecisions[0] == ElementType::bf16 && !InferenceEngine::with_cpu_x86_bfloat16())
         GTEST_SKIP();
@@ -502,7 +532,7 @@ TEST_P(MHAQuantTest, CompareWithRefs) {
         GTEST_SKIP();
 
     run();
-    CheckNumberOfNodesWithType(compiledModel, "MHA", 1);
+    CheckNumberOfNodesWithType(compiledModel, expectedNode, 1);
 }
 
 namespace {
@@ -538,6 +568,7 @@ INSTANTIATE_TEST_SUITE_P(smoke_MHAQuant, MHAQuantTest,
                                 ::testing::ValuesIn(inputPrecisionsQuant),
                                 ::testing::ValuesIn(matMulIn0PrecisionsQuant),
                                 ::testing::ValuesIn(patternTypesQuant),
+                                ::testing::Values("MHA"),  // Snippets don't support Quantized MHA pattern yet
                                 ::testing::Values(CommonTestUtils::DEVICE_CPU)),
                         MHAQuantTest::getTestCaseName);
 

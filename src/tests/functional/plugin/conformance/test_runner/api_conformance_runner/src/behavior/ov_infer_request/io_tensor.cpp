@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -43,4 +43,11 @@ INSTANTIATE_TEST_SUITE_P(ov_infer_request, OVInferRequestIOTensorSetPrecisionTes
                                  ::testing::ValuesIn(return_all_possible_device_combination()),
                                  ::testing::Values(pluginConfig)),
                          OVInferRequestIOTensorSetPrecisionTest::getTestCaseName);
+
+INSTANTIATE_TEST_SUITE_P(ov_infer_request, OVInferRequestCheckTensorPrecision,
+                         ::testing::Combine(
+                                 ::testing::ValuesIn(ovIOTensorElemTypes),
+                                 ::testing::ValuesIn(return_all_possible_device_combination()),
+                                 ::testing::Values(pluginConfig)),
+                         OVInferRequestCheckTensorPrecision::getTestCaseName);
 }  // namespace

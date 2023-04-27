@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -37,7 +37,7 @@ ov::pass::ConvertROIAlign3To9::ConvertROIAlign3To9() {
             break;
         }
         default: {
-            throw Exception("unsupported PoolingMode ");
+            OPENVINO_THROW("unsupported PoolingMode ");
         }
         }
 

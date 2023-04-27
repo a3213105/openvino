@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -17,7 +17,7 @@ using namespace ::tests;
 
 namespace {
 struct eltwise_test_params {
-    tensor input_size;
+    ov::PartialShape input_size;
     data_types input_type;
     data_types input_type2;
     format input_format;
@@ -34,8 +34,8 @@ public:
         auto input_prim = get_mem(get_input_layout(p));
         auto input_prim2 = get_mem(get_input_layout2(p));
 
-        network network_not_fused(this->engine, this->topology_non_fused, bo_not_fused);
-        network network_fused(this->engine, this->topology_fused, bo_fused);
+        network network_not_fused(this->engine, this->topology_non_fused, cfg_not_fused);
+        network network_fused(this->engine, this->topology_fused, cfg_fused);
 
         auto inputs = network_fused.get_input_ids();
         network_fused.set_input_data("input", input_prim);
@@ -49,15 +49,15 @@ public:
     }
 
     layout get_input_layout(eltwise_test_params& p) {
-        return layout{ p.input_type, p.input_format, p.input_size };
+        return layout{ p.input_size, p.input_type, p.input_format };
     }
 
     layout get_input_layout2(eltwise_test_params& p) {
-        return layout{ p.input_type2, p.input_format, p.input_size };
+        return layout{ p.input_size, p.input_type2, p.input_format };
     }
 
     layout get_per_channel_layout(eltwise_test_params& p) {
-        return layout{ p.default_type, p.default_format, tensor{ 1, p.input_size.feature[0], 1, 1 } };
+        return layout{ { 1, p.input_size[1], 1, 1 }, p.default_type, p.default_format  };
     }
 };
 }  // namespace
@@ -105,6 +105,8 @@ public:
 #define CASE_ELTWISE_I8_4           { 2, 16, 4, 4 }, data_types::i8,  data_types::i8,  format::b_fs_yx_fsv4,  data_types::f32,  format::b_fs_yx_fsv4,    eltwise_mode::sum
 #define CASE_ELTWISE_U8_4           { 2, 16, 4, 4 }, data_types::u8,  data_types::u8,  format::b_fs_yx_fsv4,  data_types::f32,  format::b_fs_yx_fsv4,    eltwise_mode::sum
 
+#define CASE_ELTWISE_FP16_7         { 3, 32, 2, 3, 3, 2, 1, 2 }, data_types::f16, data_types::f16, format::bfvuwzyx,  data_types::f16,  format::bfvuwzyx,    eltwise_mode::sum
+
 class eltwise_quantize : public EltwiseFusingTest {};
 TEST_P(eltwise_quantize, u8) {
     auto p = GetParam();
@@ -121,7 +123,7 @@ TEST_P(eltwise_quantize, u8) {
         reorder("out", input_info("quantize"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1.f;
+    tolerance = default_tolerance(data_types::i8);
     execute(p);
 }
 
@@ -140,7 +142,7 @@ TEST_P(eltwise_quantize, i8_per_channel) {
         reorder("out", input_info("quantize"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1.f;
+    tolerance = default_tolerance(data_types::i8);
     execute(p);
 }
 
@@ -189,11 +191,8 @@ TEST_P(eltwise_const_path, not_fuse_to_const_eltwise) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -218,14 +217,11 @@ TEST_P(eltwise_fp32_fsv16, add) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    implementation_desc eltw_impl = { format::b_fs_yx_fsv16, "eltwise_b_fs_yx_fsv16" };
-    bo_fused.set_option(build_option::force_implementations({ { "eltwise", eltw_impl } }));
+    ov::intel_gpu::ImplementationDesc eltw_impl = { format::b_fs_yx_fsv16, "eltwise_blocked_opt" };
+    cfg_fused.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "eltwise", eltw_impl } }));
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -240,14 +236,11 @@ TEST_P(eltwise_fp32_fsv16, add_per_element) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    implementation_desc eltw_impl = { format::b_fs_yx_fsv16, "eltwise_b_fs_yx_fsv16" };
-    bo_fused.set_option(build_option::force_implementations({ { "eltwise", eltw_impl } }));
+    ov::intel_gpu::ImplementationDesc eltw_impl = { format::b_fs_yx_fsv16, "eltwise_blocked_opt" };
+    cfg_fused.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "eltwise", eltw_impl } }));
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -264,14 +257,11 @@ TEST_P(eltwise_fp32_fsv16, add_broadcast) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    implementation_desc eltw_impl = { format::b_fs_yx_fsv16, "eltwise_b_fs_yx_fsv16" };
-    bo_fused.set_option(build_option::force_implementations({ { "eltwise", eltw_impl } }));
+    ov::intel_gpu::ImplementationDesc eltw_impl = { format::b_fs_yx_fsv16, "eltwise_blocked_opt" };
+    cfg_fused.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "eltwise", eltw_impl } }));
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -292,14 +282,11 @@ TEST_P(eltwise_fp32_fsv32, add) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    implementation_desc eltw_impl = { format::fs_b_yx_fsv32, "eltwise_fs_b_yx_fsv32" };
-    bo_fused.set_option(build_option::force_implementations({ { "eltwise", eltw_impl } }));
+    ov::intel_gpu::ImplementationDesc eltw_impl = { format::fs_b_yx_fsv32, "eltwise_fs_b_yx_fsv32" };
+    cfg_fused.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "eltwise", eltw_impl } }));
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -314,14 +301,11 @@ TEST_P(eltwise_fp32_fsv32, add_per_element) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    implementation_desc eltw_impl = { format::fs_b_yx_fsv32, "eltwise_fs_b_yx_fsv32" };
-    bo_fused.set_option(build_option::force_implementations({ { "eltwise", eltw_impl } }));
+    ov::intel_gpu::ImplementationDesc eltw_impl = { format::fs_b_yx_fsv32, "eltwise_fs_b_yx_fsv32" };
+    cfg_fused.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "eltwise", eltw_impl } }));
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -343,14 +327,11 @@ TEST_P(eltwise_fp32_fsv4, add) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    implementation_desc eltw_impl = { format::b_fs_yx_fsv4, "eltwise_b_fs_yx_fsv4" };
-    bo_fused.set_option(build_option::force_implementations({ { "eltwise", eltw_impl } }));
+    ov::intel_gpu::ImplementationDesc eltw_impl = { format::b_fs_yx_fsv4, "eltwise_blocked_opt" };
+    cfg_fused.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "eltwise", eltw_impl } }));
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -365,14 +346,11 @@ TEST_P(eltwise_fp32_fsv4, add_per_element) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    implementation_desc eltw_impl = { format::b_fs_yx_fsv4, "eltwise_b_fs_yx_fsv4" };
-    bo_fused.set_option(build_option::force_implementations({ { "eltwise", eltw_impl } }));
+    ov::intel_gpu::ImplementationDesc eltw_impl = { format::b_fs_yx_fsv4, "eltwise_blocked_opt" };
+    cfg_fused.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "eltwise", eltw_impl } }));
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -396,7 +374,7 @@ TEST_P(eltwise_fp32_fused_prims, scale_activation) {
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -412,7 +390,7 @@ TEST_P(eltwise_fp32_fused_prims, eltwise_activation) {
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -428,7 +406,7 @@ TEST_P(eltwise_fp32_fused_prims, eltwise_activation_with_broadcast) {
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -436,6 +414,7 @@ INSTANTIATE_TEST_SUITE_P(fusings_gpu, eltwise_fp32_fused_prims, ::testing::Value
     eltwise_test_params{ CASE_ELTWISE_FP16_1, 3, 5 },
     eltwise_test_params{ CASE_ELTWISE_FP16_2, 3, 5 },
     eltwise_test_params{ CASE_ELTWISE_FP16_3, 3, 5 },
+    eltwise_test_params{ CASE_ELTWISE_FP16_7, 3, 5 },
     eltwise_test_params{ CASE_ELTWISE_FP32_1, 3, 5 },
     eltwise_test_params{ CASE_ELTWISE_FP32_2, 3, 5 },
     eltwise_test_params{ CASE_ELTWISE_FP32_3, 3, 5 },
@@ -476,7 +455,7 @@ TEST_P(eltwise_fp32_scale, 6d) {
         reorder("out", input_info("scale"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -496,14 +475,11 @@ TEST_P(eltwise_fp16_byxf, add) {
         activation("activation", input_info("add"), activation_func::negative),
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support negative activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
-    implementation_desc eltw_impl = { format::byxf, "generic_eltwise_ref" };
-    bo_fused.set_option(build_option::force_implementations({ { "eltwise", eltw_impl } }));
+    ov::intel_gpu::ImplementationDesc eltw_impl = { format::byxf, "generic_eltwise_ref" };
+    cfg_fused.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "eltwise", eltw_impl } }));
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -527,7 +503,7 @@ TEST_P(eltwise_no_pitches_same_dims_quantize, quantize_f32_output) {
         reorder("out", input_info("quantize"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1.f;
+    tolerance = default_tolerance(data_types::i8);
     execute(p);
 }
 
@@ -551,7 +527,7 @@ TEST_P(eltwise_activation, basic) {
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 
@@ -565,7 +541,7 @@ TEST_P(eltwise_activation, fp16_out) {
         reorder("out", input_info("activation"), p.default_format, data_types::f32)
     );
 
-    tolerance = 1e-5f;
+    tolerance = default_tolerance(p.input_type);
     execute(p);
 }
 

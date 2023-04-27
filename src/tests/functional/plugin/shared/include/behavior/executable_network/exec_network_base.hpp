@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -211,6 +211,7 @@ TEST_P(ExecutableNetworkBaseTest, CheckExecGraphInfoAfterExecution) {
     InferenceEngine::CNNNetwork execGraph;
     // Load CNNNetwork to target plugins
     auto execNet = ie->LoadNetwork(cnnNet, target_device, configuration);
+    execNet.CreateInferRequest().Infer();
     ASSERT_NO_THROW(execGraph = execNet.GetExecGraphInfo());
     std::map<std::string, int> originalLayersMap;
     for (const auto &layer : function->get_ops()) {
@@ -267,9 +268,9 @@ TEST_P(ExecutableNetworkBaseTest, CheckExecGraphInfoAfterExecution) {
 }
 
 TEST_P(ExecutableNetworkBaseTest, CheckExecGraphInfoSerialization) {
-    auto ts = CommonTestUtils::GetTimestamp();
-    std::string out_xml_path = GetTestName().substr(0, CommonTestUtils::maxFileNameLength) + "_" + ts + ".xml";
-    std::string out_bin_path = GetTestName().substr(0, CommonTestUtils::maxFileNameLength) + "_" + ts + ".bin";
+    auto filePrefix = CommonTestUtils::generateTestFilePrefix();
+    std::string out_xml_path = filePrefix + ".xml";
+    std::string out_bin_path = filePrefix + ".bin";
 
     InferenceEngine::CNNNetwork execGraph;
     // Load CNNNetwork to target plugins
@@ -280,8 +281,8 @@ TEST_P(ExecutableNetworkBaseTest, CheckExecGraphInfoSerialization) {
 }
 
 TEST_P(ExecutableNetworkBaseTest, canExport) {
-    auto ts = CommonTestUtils::GetTimestamp();
-    std::string modelName = GetTestName().substr(0, CommonTestUtils::maxFileNameLength) + "_" + ts;
+    auto filePrefix = CommonTestUtils::generateTestFilePrefix();
+    std::string modelName = filePrefix;
     auto execNet = ie->LoadNetwork(cnnNet, target_device, configuration);
     ASSERT_NO_THROW(execNet.Export(modelName));
     ASSERT_TRUE(CommonTestUtils::fileExists(modelName));

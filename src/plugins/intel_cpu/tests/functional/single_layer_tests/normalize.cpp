@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -107,21 +107,27 @@ namespace {
 /* ============= Common params ============= */
 std::vector<fusingSpecificParams> fusingParamsSet {
         emptyFusingSpec,
+#if defined(OPENVINO_ARCH_X86_64)
         fusingMultiplyPerTensor,
         fusingRelu,
         fusingPReluPerChannel
+#endif
 };
 
 std::vector<fusingSpecificParams> fusingParamsSetDynamic {
     emptyFusingSpec,
+#if defined(OPENVINO_ARCH_X86_64)
     fusingMultiplyPerTensor,
     fusingRelu,
     fusingFakeQuantizePerTensor
+#endif
 };
 
 std::vector<fusingSpecificParams> fusingParamsSetPerChannel {
+#if defined(OPENVINO_ARCH_X86_64)
     fusingPReluPerChannel,
     fusingFakeQuantizePerChannel
+#endif
 };
 
 const float epsilon = 1e-4f;

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -8,6 +8,7 @@
 #include <node.h>
 #include <string>
 #include <ie_precision.hpp>
+#include <graph_context.h>
 
 namespace ov {
 namespace intel_cpu {
@@ -15,7 +16,7 @@ namespace node {
 
 class Concat : public Node {
 public:
-    Concat(const std::shared_ptr<ngraph::Node>& op, const dnnl::engine& eng, WeightsSharing::Ptr &cache);
+    Concat(const std::shared_ptr<ngraph::Node>& op, const GraphContext::CPtr context);
 
     static bool isSupportedOperation(const std::shared_ptr<const ngraph::Node>& op, std::string& errorMessage) noexcept;
     void getSupportedDescriptors() override;
@@ -51,6 +52,7 @@ private:
     InferenceEngine::Precision outputPrecision = InferenceEngine::Precision::FP32;
     bool canExecRef = false;
     static constexpr size_t MAX_RANK_REF = 6;
+    dnnl::primitive prim;
 };
 
 }   // namespace node

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -17,7 +17,7 @@ using namespace ::tests;
 
 namespace {
 struct activation_test_params {
-    tensor input_size;
+    ov::PartialShape input_size;
     data_types input_type;
     format input_format;
     data_types default_type;
@@ -32,12 +32,12 @@ public:
     void execute(activation_test_params& p) {
         auto input_prim = get_mem(get_input_layout(p));
 
-        build_options options;
-        implementation_desc activation_impl = { p.input_format, p.kernel_name };
-        options.set_option(build_option::optimize_data(true));
-        options.set_option(build_option::force_implementations({ { "act", activation_impl } }));
-        network network_fused(this->engine, this->topology_fused, options);
-        network network_not_fused(this->engine, this->topology_non_fused, bo_not_fused);
+        ExecutionConfig cfg = get_test_default_config(engine);
+        ov::intel_gpu::ImplementationDesc activation_impl = { p.input_format, p.kernel_name };
+        cfg.set_property(ov::intel_gpu::optimize_data(true));
+        cfg.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "act", activation_impl } }));
+        network network_fused(this->engine, this->topology_fused, cfg);
+        network network_not_fused(this->engine, this->topology_non_fused, cfg_not_fused);
 
         network_fused.set_input_data("input", input_prim);
         network_not_fused.set_input_data("input", input_prim);
@@ -46,11 +46,11 @@ public:
     }
 
     layout get_input_layout(activation_test_params& p) {
-        return layout{ p.input_type, p.input_format, p.input_size };
+        return layout{ p.input_size, p.input_type, p.input_format, };
     }
 
     layout get_per_channel_layout(activation_test_params& p) {
-        return layout{ p.default_type, p.default_format, tensor{ 1, p.input_size.feature[0], 1, 1 } };
+        return layout{ { 1, p.input_size[1], 1, 1 }, p.default_type, p.default_format };
     }
 
     format get_input_format(activation_test_params &p) { return p.input_format; }
@@ -70,6 +70,7 @@ public:
 #define CASE_ACTIVATION_F32_5 { 1, 17, 31, 29 }, data_types::f32, format::b_fs_yx_fsv4, data_types::f32, format::bfyx
 #define CASE_ACTIVATION_F32_6 { 1, 17, 31, 29 }, data_types::f32, format::b_fs_yx_fsv32, data_types::f32, format::bfyx
 #define CASE_ACTIVATION_F32_7 { 1, 17, 31, 29 }, data_types::f32, format::fyxb, data_types::f32, format::bfyx
+#define CASE_ACTIVATION_F32_8 { 1, 2, 3, 4, 5, 3, 2, 3 }, data_types::f32, format::bfvuwzyx, data_types::f32, format::bfvuwzyx
 #define CASE_ACTIVATION_3D_F32_0 { 3, 16, 13, 13, 13 }, data_types::f32, format::bfzyx, data_types::f32, format::bfzyx
 #define CASE_ACTIVATION_3D_F32_1 { 2, 16, 8, 8, 8 }, data_types::f32, format::bfzyx, data_types::f32, format::bfzyx
 #define CASE_ACTIVATION_3D_F32_2 { 1, 16, 7, 7, 7 }, data_types::f32, format::b_fs_zyx_fsv16, data_types::f32, format::bfzyx
@@ -172,14 +173,11 @@ TEST_P(activation_eltwise_activation_quantize_u8, basic) {
         data("out_low", get_mem(get_single_element_layout(p), -127)),
         data("out_high", get_mem(get_single_element_layout(p), 127)),
         eltwise("eltwise", { input_info("act"), input_info("eltwise_data") }, eltwise_mode::prod, p.default_type),
-        activation("act2", input_info("eltwise"), activation_func::softsign),
+        activation("act2", input_info("eltwise"), activation_func::swish),
         quantize("quant", input_info("act2"), input_info("in_low"), input_info("in_high"),
                  input_info("out_low"), input_info("out_high"), 256, data_types::u8),
         reorder("reorder_bfyx", input_info("quant"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support softsign activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
     tolerance = 1.f;
     execute(p);
@@ -196,14 +194,11 @@ TEST_P(activation_eltwise_activation_quantize_u8, per_channel) {
         data("out_low", get_mem(get_single_element_layout(p), -127)),
         data("out_high", get_mem(get_single_element_layout(p), 127)),
         eltwise("eltwise", { input_info("act"), input_info("eltwise_data") }, eltwise_mode::prod, p.default_type),
-        activation("act2", input_info("eltwise"), activation_func::softsign),
+        activation("act2", input_info("eltwise"), activation_func::pow),
         quantize("quant", input_info("act2"), input_info("in_low"), input_info("in_high"),
                  input_info("out_low"), input_info("out_high"), 256, data_types::u8),
         reorder("reorder_bfyx", input_info("quant"), p.default_format, data_types::f32)
     );
-    // Activation won't be fused because onednn doesn't support softsign activation
-    if (engine.get_device_info().supports_immad)
-        p.expected_fused_primitives++;
 
     tolerance = 1.f;
     execute(p);
@@ -227,6 +222,43 @@ INSTANTIATE_TEST_SUITE_P(fusings_gpu, activation_eltwise_activation_quantize_u8,
     activation_test_params{ CASE_ACTIVATION_3D_F32_0, 3, 5, "activation_ref" },
     activation_test_params{ CASE_ACTIVATION_3D_F32_1, 3, 5, "activation_ref" },
     activation_test_params{ CASE_ACTIVATION_3D_F32_2, 3, 5, "activation_ref" },
+    activation_test_params{ CASE_ACTIVATION_F32_8, 3, 5, "activation_ref" },
+}));
+
+class activation_eltwise_activation_quantize_u8_onendnn : public ActivationFusingTest {};
+TEST_P(activation_eltwise_activation_quantize_u8_onendnn, same_behavior) {
+    // Case : activation function is NOT supported on oneDNN and an input primitive selects clDNN execution
+    auto p = GetParam();
+    create_topologies(
+        input_layout("input", get_input_layout(p)),
+        activation("act", input_info("input"), activation_func::relu),
+        data("eltwise_data", get_mem(get_single_element_layout(p), 1.0f / 255)),
+        data("in_low", get_mem(get_single_element_layout(p), 0)),
+        data("in_high", get_mem(get_single_element_layout(p), 1, max_random)),
+        data("out_low", get_mem(get_single_element_layout(p), -127)),
+        data("out_high", get_mem(get_single_element_layout(p), 127)),
+        eltwise("eltwise", { input_info("act"), input_info("eltwise_data") }, eltwise_mode::prod, p.default_type),
+        activation("act2", input_info("eltwise"), activation_func::softsign),
+        quantize("quant", input_info("act2"), input_info("in_low"), input_info("in_high"),
+                 input_info("out_low"), input_info("out_high"), 256, data_types::u8),
+        reorder("reorder_bfyx", input_info("quant"), p.default_format, data_types::f32)
+    );
+
+    tolerance = 1.f;
+    execute(p);
+}
+
+INSTANTIATE_TEST_SUITE_P(fusings_gpu, activation_eltwise_activation_quantize_u8_onendnn, ::testing::ValuesIn(std::vector<activation_test_params>{
+    // InputDataType = FP32
+    activation_test_params{ CASE_ACTIVATION_F32_0, 3, 5, "activation_opt" },
+    activation_test_params{ CASE_ACTIVATION_F32_1, 3, 5, "activation_opt" },
+    activation_test_params{ CASE_ACTIVATION_3D_F32_0, 3, 5, "activation_opt" },
+    activation_test_params{ CASE_ACTIVATION_3D_F32_1, 3, 5, "activation_opt" },
+
+    activation_test_params{ CASE_ACTIVATION_F32_0, 3, 5, "activation_ref" },
+    activation_test_params{ CASE_ACTIVATION_F32_1, 3, 5, "activation_ref" },
+    activation_test_params{ CASE_ACTIVATION_3D_F32_0, 3, 5, "activation_ref" },
+    activation_test_params{ CASE_ACTIVATION_3D_F32_1, 3, 5, "activation_ref" },
 }));
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_fusings_gpu, activation_eltwise_activation_quantize_u8, ::testing::ValuesIn(std::vector<activation_test_params>{

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -67,7 +67,7 @@ const std::vector<std::string> epsMode = {
 };
 
 const std::vector<float> epsilonF = {
-    0.0001
+    0.0001f
 };
 
 INSTANTIATE_TEST_SUITE_P(smoke_MVN_5D, Mvn6LayerTest,
@@ -75,7 +75,7 @@ INSTANTIATE_TEST_SUITE_P(smoke_MVN_5D, Mvn6LayerTest,
                             ::testing::ValuesIn(std::vector<std::vector<size_t>>{{1, 10, 5, 7, 8}, {1, 3, 8, 9, 49}}),
                             ::testing::ValuesIn(dataPrecisions),
                             ::testing::ValuesIn(idxPrecisions),
-                            ::testing::ValuesIn(std::vector<std::vector<int>>{{1, 2, 3, 4}, {2, 3, 4}, {-3, -2, -1}, {-1, -4, -2, -3}}),
+                            ::testing::ValuesIn(std::vector<std::vector<int>>{{1, 2, 3, 4}, {2, 3, 4}, {-3, -2, -1}, {-1, -4, -2, -3}, {-1}}),
                             ::testing::ValuesIn(normalizeVariance),
                             ::testing::ValuesIn(epsilonF),
                             ::testing::ValuesIn(epsMode),
@@ -87,7 +87,7 @@ INSTANTIATE_TEST_SUITE_P(smoke_MVN_4D, Mvn6LayerTest,
                             ::testing::ValuesIn(std::vector<std::vector<size_t>>{{1, 10, 5, 17}, {1, 3, 8, 9}}),
                             ::testing::ValuesIn(dataPrecisions),
                             ::testing::ValuesIn(idxPrecisions),
-                            ::testing::ValuesIn(std::vector<std::vector<int>>{{1, 2, 3}, {2, 3}, {-2, -1}, {-2, -1, -3}}),
+                            ::testing::ValuesIn(std::vector<std::vector<int>>{{1, 2, 3}, {2, 3}, {-2, -1}, {-2, -1, -3}, {-1}}),
                             ::testing::ValuesIn(normalizeVariance),
                             ::testing::ValuesIn(epsilonF),
                             ::testing::ValuesIn(epsMode),

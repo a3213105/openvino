@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -76,6 +76,18 @@ const std::vector<std::vector<size_t>> inputShapesAxes4b2 = {
         std::vector<size_t>{2, 3, 7, 4, 9},
         std::vector<size_t>{2, 3, 7, 5, 4},
         std::vector<size_t>{2, 3, 7, 8, 4},
+};
+
+const auto GatherIndiceScalar = []() {
+    return testing::Combine(testing::Values(std::vector<size_t>{1, 3, 4, 5}),
+                            testing::Values(std::vector<size_t>{}),
+                            testing::Values(std::tuple<int, int>(2, 0)),
+                            testing::Values(InferenceEngine::Precision::FP32),
+                            testing::Values(InferenceEngine::Precision::UNSPECIFIED),
+                            testing::Values(InferenceEngine::Precision::UNSPECIFIED),
+                            testing::Values(InferenceEngine::Layout::ANY),
+                            testing::Values(InferenceEngine::Layout::ANY),
+                            testing::Values(CommonTestUtils::DEVICE_GPU));
 };
 
 const auto GatherAxes4i4b1 = []() {
@@ -180,6 +192,13 @@ INSTANTIATE_TEST_SUITE_P(
         Gather8LayerTest,
         GatherAxes4i8b2(),
         Gather8LayerTest::getTestCaseName
+);
+
+INSTANTIATE_TEST_SUITE_P(
+        smoke_GatherIndiceScalar,
+        Gather8IndiceScalarLayerTest,
+        GatherIndiceScalar(),
+        Gather8IndiceScalarLayerTest::getTestCaseName
 );
 
 const std::vector<std::vector<int>> indices = {

@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -245,9 +245,9 @@ struct lstm_dynamic_input_layer_test : public ::testing::Test
             "weights",
             bias_id));
 
-        build_options opts;
-        opts.set_option(build_option::optimize_data(true));
-        network network(engine, topology, opts);
+        ExecutionConfig config = get_test_default_config(engine);
+        config.set_property(ov::intel_gpu::optimize_data(true));
+        network network(engine, topology, config);
 
 #if MEASURE_PERF == true
         using clock = std::chrono::high_resolution_clock;
@@ -407,9 +407,9 @@ struct lstm_dynamic_single_layer_test : public ::testing::Test
             initial_hidden_id,
             initial_cell_id));
 
-        build_options opts;
-        opts.set_option(build_option::optimize_data(true));
-        network network(engine, topology, opts);
+        ExecutionConfig config = get_test_default_config(engine);
+        config.set_property(ov::intel_gpu::optimize_data(true));
+        network network(engine, topology, config);
         network.set_input_data("input", input_mem);
         network.set_input_data("dyn_len", dynamic_length_mem);
 
@@ -888,7 +888,7 @@ TEST(lstm_dynamic_negative, wrong_weights_size) {
         "dyn_len",
         "weights",
         "recurrent"));
-    ASSERT_ANY_THROW(network network(engine, topology));
+    ASSERT_ANY_THROW(network network(engine, topology, get_test_default_config(engine)));
 }
 
 TEST(lstm_dynamic_negative, wrong_recurrent_size_0) {
@@ -913,7 +913,7 @@ TEST(lstm_dynamic_negative, wrong_recurrent_size_0) {
         "dyn_len",
         "weights",
         "recurrent"));
-    ASSERT_ANY_THROW(network network(engine, topology));
+    ASSERT_ANY_THROW(network network(engine, topology, get_test_default_config(engine)));
 }
 
 TEST(lstm_dynamic_negative, wrong_recurrent_size_1) {
@@ -938,7 +938,7 @@ TEST(lstm_dynamic_negative, wrong_recurrent_size_1) {
         "dyn_len",
         "weights",
         "recurrent"));
-    ASSERT_ANY_THROW(network network(engine, topology));
+    ASSERT_ANY_THROW(network network(engine, topology, get_test_default_config(engine)));
 }
 
 TEST(lstm_dynamic_negative, wrong_dynamic_length_size_0) {
@@ -963,7 +963,7 @@ TEST(lstm_dynamic_negative, wrong_dynamic_length_size_0) {
         "dyn_len",
         "weights",
         "recurrent"));
-    ASSERT_ANY_THROW(network network(engine, topology));
+    ASSERT_ANY_THROW(network network(engine, topology, get_test_default_config(engine)));
 }
 
 TEST(lstm_dynamic_negative, wrong_dynamic_length_size_1) {
@@ -988,5 +988,5 @@ TEST(lstm_dynamic_negative, wrong_dynamic_length_size_1) {
         "dyn_len",
         "weights",
         "recurrent"));
-    ASSERT_ANY_THROW(network network(engine, topology));
+    ASSERT_ANY_THROW(network network(engine, topology, get_test_default_config(engine)));
 }

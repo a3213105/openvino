@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -115,9 +115,8 @@ std::string CPUTestsBase::impls2str(const std::vector<std::string> &priority) {
     return str;
 }
 
-void CPUTestsBase::CheckPluginRelatedResults(InferenceEngine::ExecutableNetwork &execNet, const std::string& nodeType) const {
-    if (!execNet) return;
-    if (nodeType.empty()) return;
+void CPUTestsBase::CheckPluginRelatedResults(InferenceEngine::ExecutableNetwork &execNet, const std::set<std::string>& nodeType) const {
+    if (!execNet || nodeType.empty()) return;
 
     ASSERT_TRUE(!selectedType.empty()) << "Node type is not defined.";
     InferenceEngine::CNNNetwork execGraphInfo = execNet.GetExecGraphInfo();
@@ -125,16 +124,23 @@ void CPUTestsBase::CheckPluginRelatedResults(InferenceEngine::ExecutableNetwork 
     CheckPluginRelatedResultsImpl(function, nodeType);
 }
 
-void CPUTestsBase::CheckPluginRelatedResults(const ov::CompiledModel &execNet, const std::string& nodeType) const {
-    if (!execNet) return;
-    if (nodeType.empty()) return;
+void CPUTestsBase::CheckPluginRelatedResults(const ov::CompiledModel &execNet, const std::set<std::string>& nodeType) const {
+    if (!execNet || nodeType.empty()) return;
 
     ASSERT_TRUE(!selectedType.empty()) << "Node type is not defined.";
     auto function = execNet.get_runtime_model();
     CheckPluginRelatedResultsImpl(function, nodeType);
 }
 
-void CPUTestsBase::CheckPluginRelatedResultsImpl(const std::shared_ptr<const ov::Model>& function, const std::string& nodeType) const {
+void CPUTestsBase::CheckPluginRelatedResults(InferenceEngine::ExecutableNetwork &execNet, const std::string& nodeType) const {
+    CheckPluginRelatedResults(execNet, std::set<std::string>{nodeType});
+}
+
+void CPUTestsBase::CheckPluginRelatedResults(const ov::CompiledModel &execNet, const std::string& nodeType) const {
+    CheckPluginRelatedResults(execNet, std::set<std::string>{nodeType});
+}
+
+void CPUTestsBase::CheckPluginRelatedResultsImpl(const std::shared_ptr<const ov::Model>& function, const std::set<std::string>& nodeType) const {
     ASSERT_NE(nullptr, function);
     for (const auto &node : function->get_ops()) {
         const auto & rtInfo = node->get_rt_info();
@@ -161,7 +167,7 @@ void CPUTestsBase::CheckPluginRelatedResultsImpl(const std::shared_ptr<const ov:
             return skip_unsquized_1D || permule_of_1;
         };
 
-        if (getExecValue(ExecGraphInfoSerialization::LAYER_TYPE) == nodeType) {
+        if (nodeType.count(getExecValue(ExecGraphInfoSerialization::LAYER_TYPE))) {
             ASSERT_LE(inFmts.size(), node->get_input_size());
             ASSERT_LE(outFmts.size(), node->get_output_size());
             for (int i = 0; i < inFmts.size(); i++) {
@@ -212,7 +218,6 @@ void CPUTestsBase::CheckPluginRelatedResultsImpl(const std::shared_ptr<const ov:
 
                 if (should_be_skipped(shape, outFmts[i]))
                     continue;
-
                 ASSERT_EQ(outFmts[i], cpu_str2fmt(actualOutputMemoryFormats[i].c_str()));
             }
 
@@ -283,6 +288,21 @@ std::string CPUTestsBase::getISA(bool skip_amx) const {
     return isaType;
 }
 
+static std::string setToString(const std::unordered_set<std::string> s) {
+    if (s.empty())
+        return {};
+
+    std::string result;
+    result.append("{");
+    for (const auto& str : s) {
+        result.append(str);
+        result.append(",");
+    }
+    result.append("}");
+
+    return result;
+}
+
 CPUTestsBase::CPUInfo
 CPUTestsBase::makeCPUInfo(const std::vector<cpu_memory_format_t>& inFmts,
                           const std::vector<cpu_memory_format_t>& outFmts,
@@ -331,7 +351,7 @@ std::string CPUTestsBase::makeSelectedTypeStr(std::string implString, ngraph::el
 }
 
 std::vector<CPUSpecificParams> filterCPUSpecificParams(std::vector<CPUSpecificParams> &paramsVector) {
-auto adjustBlockedFormatByIsa = [](std::vector<cpu_memory_format_t>& formats) {
+    auto adjustBlockedFormatByIsa = [](std::vector<cpu_memory_format_t>& formats) {
         for (int i = 0; i < formats.size(); i++) {
             if (formats[i] == nCw16c)
                 formats[i] = nCw8c;
@@ -353,7 +373,7 @@ auto adjustBlockedFormatByIsa = [](std::vector<cpu_memory_format_t>& formats) {
 }
 
 inline void CheckNumberOfNodesWithTypeImpl(std::shared_ptr<const ov::Model> function,
-                                           std::string nodeType,
+                                           const std::unordered_set<std::string>& nodeTypes,
                                            size_t expectedCount) {
     ASSERT_NE(nullptr, function);
     size_t actualNodeCount = 0;
@@ -364,27 +384,39 @@ inline void CheckNumberOfNodesWithTypeImpl(std::shared_ptr<const ov::Model> func
             IE_ASSERT(rtInfo.end() != it);
             return it->second.as<std::string>();
         };
-        if (getExecValue(ExecGraphInfoSerialization::LAYER_TYPE) == nodeType) {
+
+        if (nodeTypes.count(getExecValue(ExecGraphInfoSerialization::LAYER_TYPE))) {
             actualNodeCount++;
         }
     }
 
-    ASSERT_EQ(expectedCount, actualNodeCount) << "Unexpected count of the node type '" << nodeType << "' ";
+    ASSERT_EQ(expectedCount, actualNodeCount) << "Unexpected count of the node types '" << setToString(nodeTypes) << "' ";
 }
 
-void CheckNumberOfNodesWithType(ov::CompiledModel &compiledModel, std::string nodeType, size_t expectedCount) {
-    if (!compiledModel) return;
 
-    std::shared_ptr<const ov::Model> function = compiledModel.get_runtime_model();
-    CheckNumberOfNodesWithTypeImpl(function, nodeType, expectedCount);
-}
-
-void CheckNumberOfNodesWithType(InferenceEngine::ExecutableNetwork &execNet, std::string nodeType, size_t expectedCount) {
+void CheckNumberOfNodesWithTypes(InferenceEngine::ExecutableNetwork &execNet, const std::unordered_set<std::string>& nodeTypes, size_t expectedCount) {
     if (!execNet) return;
 
     InferenceEngine::CNNNetwork execGraphInfo = execNet.GetExecGraphInfo();
     std::shared_ptr<const ov::Model> function = execGraphInfo.getFunction();
-    CheckNumberOfNodesWithTypeImpl(function, nodeType, expectedCount);
+
+    CheckNumberOfNodesWithTypeImpl(function, nodeTypes, expectedCount);
+}
+
+void CheckNumberOfNodesWithTypes(const ov::CompiledModel &compiledModel, const std::unordered_set<std::string>& nodeTypes, size_t expectedCount) {
+    if (!compiledModel) return;
+
+    std::shared_ptr<const ov::Model> function = compiledModel.get_runtime_model();
+
+    CheckNumberOfNodesWithTypeImpl(function, nodeTypes, expectedCount);
+}
+
+void CheckNumberOfNodesWithType(const ov::CompiledModel &compiledModel, const std::string& nodeType, size_t expectedCount) {
+    CheckNumberOfNodesWithTypes(compiledModel, {nodeType}, expectedCount);
+}
+
+void CheckNumberOfNodesWithType(InferenceEngine::ExecutableNetwork &execNet, const std::string& nodeType, size_t expectedCount) {
+    CheckNumberOfNodesWithTypes(execNet, {nodeType}, expectedCount);
 }
 
 std::vector<CPUSpecificParams> filterCPUInfoForDevice(std::vector<CPUSpecificParams> CPUParams) {

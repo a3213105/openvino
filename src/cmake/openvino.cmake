@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2022 Intel Corporation
+# Copyright (C) 2018-2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -20,16 +20,17 @@ endif()
 
 add_library(${TARGET_NAME}
     $<TARGET_OBJECTS:ngraph_obj>
+    $<TARGET_OBJECTS:ngraph_obj_version>
     $<TARGET_OBJECTS:frontend_common_obj>
     $<TARGET_OBJECTS:inference_engine_obj>
+    $<TARGET_OBJECTS:inference_engine_obj_version>
     $<TARGET_OBJECTS:inference_engine_transformations_obj>
     $<TARGET_OBJECTS:inference_engine_lp_transformations_obj>)
 
 add_library(openvino::runtime ALIAS ${TARGET_NAME})
 set_target_properties(${TARGET_NAME} PROPERTIES EXPORT_NAME runtime)
 
-ie_add_vs_version_file(NAME ${TARGET_NAME} FILEDESCRIPTION "OpenVINO runtime library")
-ie_add_api_validator_post_build_step(TARGET ${TARGET_NAME})
+ov_add_vs_version_file(NAME ${TARGET_NAME} FILEDESCRIPTION "OpenVINO runtime library")
 
 target_include_directories(${TARGET_NAME} PUBLIC
     $<BUILD_INTERFACE:${OpenVINO_SOURCE_DIR}/src/core/include>
@@ -50,6 +51,12 @@ endif()
 
 if(NOT BUILD_SHARED_LIBS)
     target_compile_definitions(${TARGET_NAME} PUBLIC OPENVINO_STATIC_LIBRARY)
+
+    # TODO: remove together we GNA plugin
+    # for static linkage the dependencies are in opposite order
+    if(TARGET inference_engine_ir_v7_reader)
+        target_link_libraries(${TARGET_NAME} PRIVATE inference_engine_ir_v7_reader)
+    endif()
 endif()
 
 if(WIN32)
@@ -59,10 +66,13 @@ endif()
 set_ie_threading_interface_for(${TARGET_NAME})
 ie_mark_target_as_cc(${TARGET_NAME})
 
+# must be called after all target_link_libraries
+ie_add_api_validator_post_build_step(TARGET ${TARGET_NAME} EXTRA ${TBB_IMPORTED_TARGETS})
+
 # LTO
 set_target_properties(${TARGET_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE ${ENABLE_LTO})
 
-ie_register_plugins(MAIN_TARGET ${TARGET_NAME})
+ov_register_plugins(MAIN_TARGET ${TARGET_NAME})
 
 # Export for build tree
 
@@ -87,8 +97,6 @@ add_library(${TARGET_NAME}_dev INTERFACE)
 add_library(openvino::runtime::dev ALIAS ${TARGET_NAME}_dev)
 
 target_include_directories(${TARGET_NAME}_dev INTERFACE
-    $<BUILD_INTERFACE:${OpenVINO_SOURCE_DIR}/src/common/transformations/include>
-    $<BUILD_INTERFACE:${OpenVINO_SOURCE_DIR}/src/core/dev_api>
     $<BUILD_INTERFACE:${OpenVINO_SOURCE_DIR}/src/inference/dev_api>
     $<BUILD_INTERFACE:${OpenVINO_SOURCE_DIR}/src/common/low_precision_transformations/include>
     $<TARGET_PROPERTY:openvino_gapi_preproc,INTERFACE_INCLUDE_DIRECTORIES>)
@@ -96,7 +104,7 @@ target_include_directories(${TARGET_NAME}_dev INTERFACE
 target_compile_definitions(${TARGET_NAME}_dev INTERFACE
     $<TARGET_PROPERTY:openvino_gapi_preproc,INTERFACE_COMPILE_DEFINITIONS>)
 
-target_link_libraries(${TARGET_NAME}_dev INTERFACE ${TARGET_NAME} openvino::itt openvino::util)
+target_link_libraries(${TARGET_NAME}_dev INTERFACE ${TARGET_NAME} openvino::core::dev)
 
 set_ie_threading_interface_for(${TARGET_NAME}_dev)
 set_target_properties(${TARGET_NAME}_dev PROPERTIES EXPORT_NAME runtime::dev)
@@ -118,14 +126,14 @@ if(ENABLE_INTEL_GNA)
     list(APPEND PATH_VARS "GNA_PATH")
 endif()
 
-ie_cpack_add_component(${OV_CPACK_COMP_CORE}
+ov_cpack_add_component(${OV_CPACK_COMP_CORE}
                        HIDDEN
                        DEPENDS ${core_components})
-ie_cpack_add_component(${OV_CPACK_COMP_CORE_DEV}
+ov_cpack_add_component(${OV_CPACK_COMP_CORE_DEV}
                        HIDDEN
                        DEPENDS ${OV_CPACK_COMP_CORE} ${core_dev_components})
 
-if(BUILD_SHARED_LIBS)
+if(ENABLE_PLUGINS_XML)
     install(FILES $<TARGET_FILE_DIR:${TARGET_NAME}>/plugins.xml
             DESTINATION ${OV_CPACK_PLUGINSDIR}
             COMPONENT ${OV_CPACK_COMP_CORE})

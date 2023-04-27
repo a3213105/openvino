@@ -1,13 +1,11 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
 #include "reduce_inst.h"
 
 #include "primitive_type_base.h"
-#include "intel_gpu/runtime/error_handler.hpp"
 #include "json_object.h"
-#include "data_inst.h"
 #include <vector>
 #include <string>
 
@@ -27,7 +25,7 @@ static std::vector<uint16_t> convert_axes(std::vector<int64_t> axes, size_t rank
         if (axis < 0)
             axis = axis + rank;
 
-        converted_axes.push_back(rank + 1 - axis);
+        converted_axes.push_back(static_cast<uint16_t>(rank + 1 - axis));
     }
 
     return converted_axes;

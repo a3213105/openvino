@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -278,7 +278,7 @@ namespace v4 {
 /// \ingroup ov_ops_cpp_api
 class OPENVINO_API LSTMCell : public util::RNNCellBase {
 public:
-    OPENVINO_OP("LSTMCell", "opset4", op::util::RNNCellBase, 4);
+    OPENVINO_OP("LSTMCell", "opset4", op::util::RNNCellBase);
 
     LSTMCell();
     ///

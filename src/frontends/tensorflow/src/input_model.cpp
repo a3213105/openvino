@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -55,31 +55,41 @@ public:
     InputModelTFImpl(const GraphIterator::Ptr& graph_iterator, const ov::frontend::InputModel& input_model);
     InputModelTFImpl(const GraphIterator::Ptr& graph_iterator,
                      const ov::frontend::InputModel& input_model,
-                     const std::shared_ptr<TelemetryExtension>& telemetry);
-    std::vector<ov::frontend::Place::Ptr> getInputs() const;
-    std::vector<ov::frontend::Place::Ptr> getOutputs() const;
-    ov::frontend::Place::Ptr getPlaceByTensorName(const std::string& tensorName) const;
-    void overrideAllOutputs(const std::vector<ov::frontend::Place::Ptr>& outputs);
-    void overrideAllInputs(const std::vector<ov::frontend::Place::Ptr>& inputs);
-    void extractSubgraph(const std::vector<ov::frontend::Place::Ptr>& inputs,
-                         const std::vector<ov::frontend::Place::Ptr>& outputs);
-    void setPartialShape(ov::frontend::Place::Ptr place, const ov::PartialShape&);
-    ov::PartialShape getPartialShape(ov::frontend::Place::Ptr place) const;
-    void setElementType(ov::frontend::Place::Ptr place, const ov::element::Type&);
-    ov::element::Type getElementType(ov::frontend::Place::Ptr place) const;
-    void setTensorValue(ov::frontend::Place::Ptr place, const void* value);
+                     const std::shared_ptr<TelemetryExtension>& telemetry,
+                     const std::shared_ptr<VariablesIndex>& variables_index,
+                     const std::shared_ptr<std::map<std::string, std::string>> saved_model_input_names,
+                     const std::shared_ptr<std::map<std::string, std::string>> saved_model_output_names,
+                     const bool native_format = false);
+    std::vector<ov::frontend::Place::Ptr> get_inputs() const;
+    std::vector<ov::frontend::Place::Ptr> get_outputs() const;
+    ov::frontend::Place::Ptr get_place_by_tensor_name(const std::string& tensorName) const;
+    void override_all_outputs(const std::vector<ov::frontend::Place::Ptr>& outputs);
+    void override_all_inputs(const std::vector<ov::frontend::Place::Ptr>& inputs);
+    void extract_subgraph(const std::vector<ov::frontend::Place::Ptr>& inputs,
+                          const std::vector<ov::frontend::Place::Ptr>& outputs);
+    void set_partial_shape(ov::frontend::Place::Ptr place, const ov::PartialShape&);
+    ov::PartialShape get_partial_shape(ov::frontend::Place::Ptr place) const;
+    void set_element_type(ov::frontend::Place::Ptr place, const ov::element::Type&);
+    ov::element::Type get_element_type(ov::frontend::Place::Ptr place) const;
+    void set_tensor_value(ov::frontend::Place::Ptr place, const void* value);
 
-    std::vector<std::shared_ptr<OpPlace>> get_op_places() const;
+    std::vector<std::shared_ptr<OpPlace>> get_op_places();
     std::map<std::string, std::shared_ptr<TensorPlace>> get_tensor_places() const {
         return m_tensor_places;
     }
     std::map<std::string, Output<Node>> get_tensor_values() const {
         return m_tensor_values;
     };
+    std::shared_ptr<InputModel> get_body_input_model(const std::string& body_model_name) const;
+    std::vector<std::string> get_input_names() const;
+    std::vector<std::string> get_output_names() const;
+    std::shared_ptr<VariablesIndex> get_variables_index() const;
+    std::shared_ptr<std::map<std::string, std::string>> get_saved_model_input_names() const;
+    std::shared_ptr<std::map<std::string, std::string>> get_saved_model_output_names() const;
 
 private:
-    void loadPlaces();
-    std::vector<std::shared_ptr<OpPlace>> topologically_sort_op_nodes() const;
+    void load_places();
+    std::vector<std::shared_ptr<OpPlace>> topologically_sort_op_nodes();
 
     std::vector<std::shared_ptr<OpPlace>> m_op_places;
     std::map<std::string, std::shared_ptr<OpPlace>> m_op_places_map;
@@ -91,16 +101,29 @@ private:
     std::shared_ptr<GraphIterator> m_graph_iterator;
     const ov::frontend::InputModel& m_input_model;
 
+    std::vector<std::string> m_input_names;
+    std::unordered_set<std::string> m_found_inputs;
+    std::vector<std::string> m_output_names;
+
     std::shared_ptr<TelemetryExtension> m_telemetry;
+
+    std::shared_ptr<VariablesIndex> m_variables_index;
+    std::shared_ptr<std::map<std::string, std::string>> m_saved_model_input_names;
+    std::shared_ptr<std::map<std::string, std::string>> m_saved_model_output_names;
+
+    bool m_native_format;
+    bool m_custom_inputs;
 
     // shows if some nodes might be deleted from graph
     bool m_graph_changed = false;
 };
 
-void InputModel::InputModelTFImpl::loadPlaces() {
+void InputModel::InputModelTFImpl::load_places() {
     std::set<std::string> all_op_names;
     std::set<std::string> op_names_with_consumers;
     std::map<std::string, uint64_t> op_statistics;
+
+    m_custom_inputs = false;
 
     m_inputs.clear();
     for (; !m_graph_iterator->is_end(); m_graph_iterator->next()) {
@@ -146,10 +169,10 @@ void InputModel::InputModelTFImpl::loadPlaces() {
             }
             auto dtype_any = node_decoder->get_attribute("dtype");
             auto placeholder_name = node_decoder->get_op_name();
-            FRONT_END_GENERAL_CHECK(
-                dtype_any.is<ov::element::Type>(),
-                "Incorrect input model: Placeholder node " + placeholder_name + " has unspecified type.");
-            auto type = dtype_any.as<ov::element::Type>();
+            ov::element::Type type = ov::element::dynamic;
+            if (dtype_any.is<ov::element::Type>()) {
+                type = dtype_any.as<ov::element::Type>();
+            }
             std::vector<std::string> names = {op_name};
             auto tensor_place = std::make_shared<TensorPlace>(m_input_model, pshape, type, names);
             m_tensor_places[op_name] = tensor_place;
@@ -160,9 +183,13 @@ void InputModel::InputModelTFImpl::loadPlaces() {
         }
         for (size_t input_port_idx = 0; input_port_idx < node_decoder->get_input_size(); ++input_port_idx) {
             std::string producer_op_name;
+            std::string producer_output_port_name;
             size_t producer_output_port_idx;
             try {
-                node_decoder->get_input_node(input_port_idx, producer_op_name, producer_output_port_idx);
+                node_decoder->get_input_node(input_port_idx,
+                                             producer_op_name,
+                                             producer_output_port_name,
+                                             producer_output_port_idx);
                 op_names_with_consumers.insert(producer_op_name);
             } catch (const std::exception&) {
                 FRONT_END_THROW("[ ERROR ] Exception happened when preparing input " + std::to_string(input_port_idx) +
@@ -191,17 +218,36 @@ void InputModel::InputModelTFImpl::loadPlaces() {
     for (auto& output_name : op_names_without_consumers) {
         std::vector<std::string> output_names = {output_name};
         auto output_place =
-            std::make_shared<TensorPlace>(m_input_model, ov::PartialShape({}), ov::element::undefined, output_names);
+            std::make_shared<TensorPlace>(m_input_model, ov::PartialShape({}), ov::element::dynamic, output_names);
         m_tensor_places[output_name] = output_place;
         m_outputs.push_back(output_place);
     }
 }
+std::shared_ptr<VariablesIndex> InputModel::InputModelTFImpl::get_variables_index() const {
+    return m_variables_index;
+}
 
-std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::get_op_places() const {
+std::shared_ptr<std::map<std::string, std::string>> InputModel::InputModelTFImpl::get_saved_model_input_names() const {
+    return m_saved_model_input_names;
+}
+
+std::shared_ptr<std::map<std::string, std::string>> InputModel::InputModelTFImpl::get_saved_model_output_names() const {
+    return m_saved_model_output_names;
+}
+
+std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::get_op_places() {
     return topologically_sort_op_nodes();
 }
 
-std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::topologically_sort_op_nodes() const {
+std::vector<std::string> InputModel::InputModelTFImpl::get_input_names() const {
+    return m_input_names;
+}
+
+std::vector<std::string> InputModel::InputModelTFImpl::get_output_names() const {
+    return m_output_names;
+}
+
+std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::topologically_sort_op_nodes() {
     std::vector<std::shared_ptr<OpPlace>> topologically_sorted_ops;
     std::stack<std::shared_ptr<OpPlace>> ops_to_do;
     std::unordered_set<std::shared_ptr<OpPlace>> ops_done;
@@ -241,9 +287,13 @@ std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::topologicall
 
             for (size_t input_port_idx = 0; input_port_idx < input_count; ++input_port_idx) {
                 std::string producer_name;
+                std::string producer_output_port_name;
                 size_t producer_output_port_idx;
                 try {
-                    current_operation_decoder->get_input_node(input_port_idx, producer_name, producer_output_port_idx);
+                    current_operation_decoder->get_input_node(input_port_idx,
+                                                              producer_name,
+                                                              producer_output_port_name,
+                                                              producer_output_port_idx);
                 } catch (const std::exception&) {
                     FRONT_END_THROW("[ ERROR ] Exception happened when preparing input " +
                                     std::to_string(input_port_idx) + " for op '" +
@@ -266,6 +316,7 @@ std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::topologicall
                 if (m_tensor_places.find(input_port_name) != m_tensor_places.end()) {
                     const auto& tensor_place = m_tensor_places[input_port_name];
                     is_input |= tensor_place->is_input();
+                    m_found_inputs.insert(input_port_name);
                 }
 
                 // 2. check if the producer node is pruned by its output port
@@ -293,6 +344,18 @@ std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::topologicall
                 }
             }
 
+            // Storing information about found inputs.
+            // It needs to cover "cutting" a graph, we need to return updated list of inputs
+            if (current_operation_type == "Placeholder") {
+                for (auto& name : current_operation_place->get_names()) {
+                    m_found_inputs.insert(name);
+                    // Add unified name if needed
+                    if (name.find(':') == std::string::npos) {
+                        m_found_inputs.insert(name + ":0");
+                    }
+                }
+            }
+
             if (can_add) {
                 topologically_sorted_ops.push_back(current_operation_place);
                 ops_to_do.pop();
@@ -308,45 +371,118 @@ std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::topologicall
 
 InputModel::InputModelTFImpl::InputModelTFImpl(const GraphIterator::Ptr& graph_iterator,
                                                const ov::frontend::InputModel& input_model)
-    : m_input_model(input_model),
-      m_graph_iterator(graph_iterator) {
+    : m_graph_iterator(graph_iterator),
+      m_input_model(input_model),
+      m_native_format(false) {
     FRONT_END_GENERAL_CHECK(m_graph_iterator, "Null pointer specified for GraphIterator");
-    loadPlaces();
+    load_places();
 }
 
-InputModel::InputModelTFImpl::InputModelTFImpl(const GraphIterator::Ptr& graph_iterator,
-                                               const ov::frontend::InputModel& input_model,
-                                               const std::shared_ptr<TelemetryExtension>& telemetry)
-    : m_input_model(input_model),
-      m_graph_iterator(graph_iterator),
-      m_telemetry(telemetry) {
+std::shared_ptr<InputModel> InputModel::InputModelTFImpl::get_body_input_model(
+    const std::string& body_model_name) const {
+    auto body_graph_iterator = m_graph_iterator->get_body_graph_iterator(body_model_name);
+    if (!body_graph_iterator) {
+        return nullptr;
+    }
+    return std::make_shared<InputModel>(body_graph_iterator, m_telemetry);
+}
+
+InputModel::InputModelTFImpl::InputModelTFImpl(
+    const GraphIterator::Ptr& graph_iterator,
+    const ov::frontend::InputModel& input_model,
+    const std::shared_ptr<TelemetryExtension>& telemetry,
+    const std::shared_ptr<VariablesIndex>& variables_index,
+    const std::shared_ptr<std::map<std::string, std::string>> saved_model_input_names,
+    const std::shared_ptr<std::map<std::string, std::string>> saved_model_output_names,
+    const bool native_format)
+    : m_graph_iterator(graph_iterator),
+      m_input_model(input_model),
+      m_telemetry(telemetry),
+      m_variables_index(variables_index),
+      m_saved_model_input_names(saved_model_input_names),
+      m_saved_model_output_names(saved_model_output_names),
+      m_native_format(native_format) {
     FRONT_END_GENERAL_CHECK(m_graph_iterator, "Null pointer specified for GraphIterator");
-    loadPlaces();
+    m_input_names = graph_iterator->get_input_names();
+    m_output_names = graph_iterator->get_output_names();
+    load_places();
 }
 
-std::vector<ov::frontend::Place::Ptr> InputModel::InputModelTFImpl::getInputs() const {
-    return m_inputs;
+std::vector<ov::frontend::Place::Ptr> InputModel::InputModelTFImpl::get_inputs() const {
+    if (m_native_format) {
+        std::vector<ov::frontend::Place::Ptr> found_inputs;
+        if (m_custom_inputs) {
+            // When user asks overrding inputs/outputs then some inputs should be
+            // excluded for output, depends on results after a call of topologically_sort_op_nodes
+            // For example, model has a two inputs, but after cutting by an output one input
+            // may be unavailable in path to new output. In such case we need to do not
+            // return it as an available input, otherwise it won't be connected with a graph.
+            for (auto& input : m_inputs) {
+                for (auto& name : input->get_names()) {
+                    if (std::find(m_found_inputs.begin(), m_found_inputs.end(), name) != m_found_inputs.end()) {
+                        found_inputs.push_back(input);
+                        break;
+                    }
+                }
+            }
+        } else {
+            // Do not return internally used inputs
+            for (auto& input : m_inputs) {
+                for (auto& name : input->get_names()) {
+                    if (name == "saver_filename") {
+                        continue;
+                    }
+                    found_inputs.push_back(input);
+                }
+            }
+        }
+        return found_inputs;
+    } else {
+        return m_inputs;
+    }
 }
 
-std::vector<ov::frontend::Place::Ptr> InputModel::InputModelTFImpl::getOutputs() const {
+std::vector<ov::frontend::Place::Ptr> InputModel::InputModelTFImpl::get_outputs() const {
     return m_outputs;
 }
 
-ov::frontend::Place::Ptr InputModel::InputModelTFImpl::getPlaceByTensorName(const std::string& tensorName) const {
-    if (m_tensor_places.find(tensorName) != m_tensor_places.end())
-        return m_tensor_places.at(tensorName);
+ov::frontend::Place::Ptr InputModel::InputModelTFImpl::get_place_by_tensor_name(const std::string& tensorName) const {
+    std::string internalTensorName = tensorName;
+
+    if (m_saved_model_input_names.get()) {
+        for (const auto& alt_name : *m_saved_model_input_names) {
+            if (alt_name.second == tensorName) {
+                internalTensorName = alt_name.first;
+                break;
+            }
+        }
+    }
+
+    if (m_saved_model_output_names.get()) {
+        for (const auto& alt_name : *m_saved_model_output_names) {
+            if (alt_name.second == tensorName) {
+                internalTensorName = alt_name.first;
+                break;
+            }
+        }
+    }
+
+    if (m_tensor_places.find(internalTensorName) != m_tensor_places.end()) {
+        return m_tensor_places.at(internalTensorName);
+    }
 
     // check that operation node exists for which this place is specified
     std::string operation_name;
     size_t port_idx;
     std::string port_type;
-    tensorflow::extract_operation_name_and_port(tensorName, operation_name, port_idx, port_type);
+    tensorflow::extract_operation_name_and_port(internalTensorName, operation_name, port_idx, port_type);
+
     if (m_op_places_map.find(operation_name) != m_op_places_map.end()) {
         // new Tensor places must be constructed of dynamic rank and type
-        std::vector<std::string> names = {tensorName};
+        std::vector<std::string> names = {internalTensorName};
         auto m_var_place =
-            std::make_shared<TensorPlace>(m_input_model, ov::PartialShape::dynamic(), ov::element::undefined, names);
-        m_tensor_places[tensorName] = m_var_place;
+            std::make_shared<TensorPlace>(m_input_model, ov::PartialShape::dynamic(), ov::element::dynamic, names);
+        m_tensor_places[internalTensorName] = m_var_place;
         return m_var_place;
     }
 
@@ -364,46 +500,60 @@ std::shared_ptr<TensorPlace> castToTensorPlace(const ov::frontend::Place::Ptr& p
     FRONT_END_GENERAL_CHECK(false, "Cannot cast this Place to TensorPlaceTF.");
 }
 
-void InputModel::InputModelTFImpl::overrideAllInputs(const std::vector<ov::frontend::Place::Ptr>& inputs) {
+void InputModel::InputModelTFImpl::override_all_inputs(const std::vector<ov::frontend::Place::Ptr>& inputs) {
     m_graph_changed = true;
     m_inputs.clear();
     for (const auto& input_place : inputs) {
         m_inputs.push_back(castToTensorPlace(input_place));
     }
+
+    if (m_native_format) {
+        // Need to read actual outputs
+        m_custom_inputs = true;
+        m_found_inputs.clear();
+        topologically_sort_op_nodes();
+    }
 }
 
-void InputModel::InputModelTFImpl::overrideAllOutputs(const std::vector<ov::frontend::Place::Ptr>& outputs) {
+void InputModel::InputModelTFImpl::override_all_outputs(const std::vector<ov::frontend::Place::Ptr>& outputs) {
     m_graph_changed = true;
     m_outputs.clear();
     for (const auto& output_place : outputs) {
         m_outputs.push_back(castToTensorPlace(output_place));
     }
+
+    if (m_native_format) {
+        // Need to read actual inputs
+        m_custom_inputs = true;
+        m_found_inputs.clear();
+        topologically_sort_op_nodes();
+    }
 }
 
-void InputModel::InputModelTFImpl::extractSubgraph(const std::vector<ov::frontend::Place::Ptr>& inputs,
-                                                   const std::vector<ov::frontend::Place::Ptr>& outputs) {
+void InputModel::InputModelTFImpl::extract_subgraph(const std::vector<ov::frontend::Place::Ptr>& inputs,
+                                                    const std::vector<ov::frontend::Place::Ptr>& outputs) {
     m_graph_changed = true;
-    overrideAllInputs(inputs);
-    overrideAllOutputs(outputs);
+    override_all_inputs(inputs);
+    override_all_outputs(outputs);
 }
 
-void InputModel::InputModelTFImpl::setPartialShape(ov::frontend::Place::Ptr place, const ov::PartialShape& p_shape) {
+void InputModel::InputModelTFImpl::set_partial_shape(ov::frontend::Place::Ptr place, const ov::PartialShape& p_shape) {
     castToTensorPlace(place)->set_partial_shape(p_shape);
 }
 
-ov::PartialShape InputModel::InputModelTFImpl::getPartialShape(ov::frontend::Place::Ptr place) const {
+ov::PartialShape InputModel::InputModelTFImpl::get_partial_shape(ov::frontend::Place::Ptr place) const {
     return castToTensorPlace(place)->get_partial_shape();
 }
 
-void InputModel::InputModelTFImpl::setElementType(ov::frontend::Place::Ptr place, const ov::element::Type& type) {
+void InputModel::InputModelTFImpl::set_element_type(ov::frontend::Place::Ptr place, const ov::element::Type& type) {
     castToTensorPlace(place)->set_element_type(type);
 }
 
-ov::element::Type InputModel::InputModelTFImpl::getElementType(ov::frontend::Place::Ptr place) const {
+ov::element::Type InputModel::InputModelTFImpl::get_element_type(ov::frontend::Place::Ptr place) const {
     return castToTensorPlace(place)->get_element_type();
 }
 
-void InputModel::InputModelTFImpl::setTensorValue(ov::frontend::Place::Ptr place, const void* value) {
+void InputModel::InputModelTFImpl::set_tensor_value(ov::frontend::Place::Ptr place, const void* value) {
     m_graph_changed = true;
     auto tensor_place = castToTensorPlace(place);
     auto p_shape = tensor_place->get_partial_shape();
@@ -420,11 +570,46 @@ void InputModel::InputModelTFImpl::setTensorValue(ov::frontend::Place::Ptr place
     m_tensor_values[name] = constant;
 }
 
-InputModel::InputModel(const GraphIterator::Ptr& graph_iterator, const std::shared_ptr<TelemetryExtension>& telemetry)
-    : _impl{std::make_shared<InputModelTFImpl>(graph_iterator, *this, telemetry)} {}
+InputModel::InputModel(const GraphIterator::Ptr& graph_iterator,
+                       const std::shared_ptr<TelemetryExtension>& telemetry,
+                       const std::shared_ptr<VariablesIndex>& variables_index,
+                       const std::shared_ptr<std::map<std::string, std::string>> saved_model_input_names,
+                       const std::shared_ptr<std::map<std::string, std::string>> saved_model_output_names,
+                       const bool native_format)
+    : _impl{std::make_shared<InputModelTFImpl>(graph_iterator,
+                                               *this,
+                                               telemetry,
+                                               variables_index,
+                                               saved_model_input_names,
+                                               saved_model_output_names,
+                                               native_format)} {}
+
+std::shared_ptr<VariablesIndex> InputModel::get_variables_index() {
+    return _impl->get_variables_index();
+}
+
+std::shared_ptr<std::map<std::string, std::string>> InputModel::get_saved_model_input_names() const {
+    return _impl->get_saved_model_input_names();
+}
+
+std::shared_ptr<std::map<std::string, std::string>> InputModel::get_saved_model_output_names() const {
+    return _impl->get_saved_model_output_names();
+}
+
+std::vector<std::string> InputModel::get_input_names() const {
+    return _impl->get_input_names();
+}
+
+std::vector<std::string> InputModel::get_output_names() const {
+    return _impl->get_output_names();
+}
 
 std::vector<std::shared_ptr<OpPlace>> InputModel::get_op_places() const {
     return _impl->get_op_places();
+}
+
+std::shared_ptr<InputModel> InputModel::get_body_input_model(const std::string& body_model_name) const {
+    return _impl->get_body_input_model(body_model_name);
 }
 
 std::map<std::string, std::shared_ptr<TensorPlace>> InputModel::get_tensor_places() const {
@@ -436,50 +621,49 @@ std::map<std::string, Output<Node>> InputModel::get_tensor_values() const {
 }
 
 std::vector<ov::frontend::Place::Ptr> InputModel::get_inputs() const {
-    return _impl->getInputs();
+    return _impl->get_inputs();
 }
 
 std::vector<ov::frontend::Place::Ptr> InputModel::get_outputs() const {
-    return _impl->getOutputs();
+    return _impl->get_outputs();
 }
 
 ov::frontend::Place::Ptr InputModel::get_place_by_tensor_name(const std::string& tensorName) const {
-    return _impl->getPlaceByTensorName(tensorName);
+    return _impl->get_place_by_tensor_name(tensorName);
 }
 
 void InputModel::override_all_outputs(const std::vector<ov::frontend::Place::Ptr>& outputs) {
-    _impl->overrideAllOutputs(outputs);
+    _impl->override_all_outputs(outputs);
 }
 
 void InputModel::override_all_inputs(const std::vector<ov::frontend::Place::Ptr>& inputs) {
-    _impl->overrideAllInputs(inputs);
+    _impl->override_all_inputs(inputs);
 }
 
 void InputModel::extract_subgraph(const std::vector<ov::frontend::Place::Ptr>& inputs,
                                   const std::vector<ov::frontend::Place::Ptr>& outputs) {
-    _impl->extractSubgraph(inputs, outputs);
+    _impl->extract_subgraph(inputs, outputs);
 }
 
 void InputModel::set_partial_shape(const ov::frontend::Place::Ptr& place, const ov::PartialShape& p_shape) {
-    _impl->setPartialShape(place, p_shape);
+    _impl->set_partial_shape(place, p_shape);
 }
 
 ov::PartialShape InputModel::get_partial_shape(const ov::frontend::Place::Ptr& place) const {
-    return _impl->getPartialShape(place);
+    return _impl->get_partial_shape(place);
 }
 
 void InputModel::set_element_type(const ov::frontend::Place::Ptr& place, const ov::element::Type& type) {
-    _impl->setElementType(place, type);
+    _impl->set_element_type(place, type);
 }
 
 ov::element::Type InputModel::get_element_type(const ov::frontend::Place::Ptr& place) const {
-    return _impl->getElementType(place);
+    return _impl->get_element_type(place);
 }
 
 void InputModel::set_tensor_value(const ov::frontend::Place::Ptr& place, const void* value) {
-    _impl->setTensorValue(place, value);
+    _impl->set_tensor_value(place, value);
 }
-
 }  // namespace tensorflow
 }  // namespace frontend
 }  // namespace ov

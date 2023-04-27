@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -35,8 +35,8 @@ public:
 
     void execute(resample_test_params& p, std::map<std::string, std::vector<std::string>> expected_fused_primitives_ids = {}) {
         auto input_prim = get_mem(get_input_layout(p));
-        network network_not_fused(this->engine, this->topology_non_fused, bo_not_fused);
-        network network_fused(this->engine, this->topology_fused, bo_fused);
+        network network_not_fused(this->engine, this->topology_non_fused, cfg_not_fused);
+        network network_fused(this->engine, this->topology_fused, cfg_fused);
         network_fused.set_input_data("input", input_prim);
         network_not_fused.set_input_data("input", input_prim);
 
@@ -173,6 +173,9 @@ INSTANTIATE_TEST_SUITE_P(fusings_gpu, resample_scale_activation_eltwise, ::testi
 
 class resample_quantize_concat : public ResamplePrimitiveFusingTest {};
 TEST_P(resample_quantize_concat, along_f) {
+    if (get_test_engine().get_device_info().supports_immad)
+        return;
+
     auto p = GetParam();
     create_topologies(
         input_layout("input", get_input_layout(p)),
@@ -222,6 +225,9 @@ INSTANTIATE_TEST_SUITE_P(fusings_gpu, resample_quantize_concat, ::testing::Value
 
 class resample_eltwise_concat : public ResamplePrimitiveFusingTest {};
 TEST_P(resample_eltwise_concat, along_f) {
+    if (get_test_engine().get_device_info().supports_immad)
+        return;
+
     auto p = GetParam();
     create_topologies(
         input_layout("input", get_input_layout(p)),

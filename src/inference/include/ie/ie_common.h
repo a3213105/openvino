@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -78,10 +78,10 @@ enum Layout : uint8_t {
     NDHWC = 4,  //!< NDHWC layout for input / output blobs
 
     // weight layouts
-    OIHW = 64,    //!< NDHWC layout for operation weights
-    GOIHW = 65,   //!< NDHWC layout for operation weights
-    OIDHW = 66,   //!< NDHWC layout for operation weights
-    GOIDHW = 67,  //!< NDHWC layout for operation weights
+    OIHW = 64,    //!< OIHW layout for operation weights
+    GOIHW = 65,   //!< GOIHW layout for operation weights
+    OIDHW = 66,   //!< OIDHW layout for operation weights
+    GOIDHW = 67,  //!< GOIDHW layout for operation weights
 
     // Scalar
     SCALAR = 95,  //!< A scalar layout
@@ -120,6 +120,10 @@ inline std::ostream& operator<<(std::ostream& out, const Layout& p) {
         PRINT_LAYOUT(NCDHW);
         PRINT_LAYOUT(NDHWC);
         PRINT_LAYOUT(OIHW);
+        PRINT_LAYOUT(GOIHW);
+        PRINT_LAYOUT(OIDHW);
+        PRINT_LAYOUT(GOIDHW);
+        PRINT_LAYOUT(SCALAR);
         PRINT_LAYOUT(C);
         PRINT_LAYOUT(CHW);
         PRINT_LAYOUT(HWC);

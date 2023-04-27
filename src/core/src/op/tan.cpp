@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -60,7 +60,7 @@ bool evaluate_tan(const HostTensorPtr& arg0, const HostTensorPtr& out, const siz
 
 bool op::Tan::evaluate(const HostTensorVector& outputs, const HostTensorVector& inputs) const {
     OV_OP_SCOPE(v0_Tan_evaluate);
-    return tanop::evaluate_tan(inputs[0], outputs[0], shape_size(get_output_shape(0)));
+    return tanop::evaluate_tan(inputs[0], outputs[0], shape_size(inputs[0]->get_shape()));
 }
 
 bool op::Tan::has_evaluate() const {

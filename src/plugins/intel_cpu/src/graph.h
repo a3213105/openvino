@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -12,6 +12,7 @@
 #include "edge.h"
 #include "cache/multi_cache.h"
 #include "dnnl_scratch_pad.h"
+#include "graph_context.h"
 #include <map>
 #include <string>
 #include <vector>
@@ -27,7 +28,6 @@ class InferRequest;
 class Graph {
 public:
     typedef std::shared_ptr<Graph> Ptr;
-    WeightsSharing::Ptr weightsCache;
 
     enum class Status {
         NotReady = 0,
@@ -42,21 +42,16 @@ public:
         return (status != Status::NotReady);
     }
 
-    void setConfig(const Config &cfg);
-    const Config& getConfig() const;
-
-    void setProperty(const std::map<std::string, std::string> &properties);
-    Config getProperty() const;
+    const Config & getConfig() const {
+        return context->getConfig();
+    }
 
     template<typename NET>
-    void CreateGraph(NET &network,
-                     const ExtensionManager::Ptr& extMgr,
-                     WeightsSharing::Ptr &w_cache,
-                     const std::shared_ptr<std::mutex>& mutex);
+    void CreateGraph(NET &network, const GraphContext::CPtr ctx);
 
     void CreateGraph(const std::vector<NodePtr> &graphNodes,
                      const std::vector<EdgePtr> &graphEdges,
-                     WeightsSharing::Ptr &w_cache,
+                     const GraphContext::CPtr ctx,
                      std::string name);
 
     bool hasMeanImageFor(const std::string& name) {
@@ -111,7 +106,11 @@ public:
     }
 
     dnnl::engine getEngine() const {
-        return eng;
+        return context->getEngine();
+    }
+
+    GraphContext::CPtr getGraphContext() const {
+        return context;
     }
 
     void GetPerfData(std::map<std::string, InferenceEngine::InferenceEngineProfileInfo> &perfMap) const;
@@ -187,12 +186,19 @@ public:
 
     void SortTopologically();
 
-    bool isQuantized() const {
-        return isQuantizedFlag;
-    }
-
     bool hasDynamicInput() const {
         return graphHasDynamicInput;
+    }
+
+    /**
+     * @brief This call updates the dynamic batch value
+     * 
+     * @note It is used for backward compatibility with legacy API only.
+     * @param newDynBatch
+     * new dynamic batch value
+     */
+    void setDynBatch(int newDynBatch) {
+        dynBatch = newDynBatch;
     }
 
 protected:
@@ -200,7 +206,6 @@ protected:
 
     void ForgetGraphData() {
         status = Status::NotReady;
-        eng = dnnl::engine(dnnl::engine::kind::cpu, 0);
 
         inputNodesMap.clear();
         outputNodesMap.clear();
@@ -210,7 +215,6 @@ protected:
         syncNodesInds.clear();
     }
     Status status { Status::NotReady };
-    Config config;
 
     // For dumping purposes. -1 - no counting, all other positive
     // values mean increment it within each Infer() call
@@ -226,13 +230,10 @@ protected:
     std::map<std::string, NormalizePreprocess> _normalizePreprocMap;
     std::string _name;
 
-    bool isQuantizedFlag = false;
     bool graphHasDynamicInput = false;
 
-    static dnnl::engine eng;
-
-    void Replicate(const InferenceEngine::CNNNetwork &network, const ExtensionManager::Ptr& extMgr);
-    void Replicate(const std::shared_ptr<const ov::Model> &subgraph, const ExtensionManager::Ptr& extMgr);
+    void Replicate(const InferenceEngine::CNNNetwork &network);
+    void Replicate(const std::shared_ptr<const ov::Model> &subgraph);
     void InitGraph();
     void InitNodes();
     void InitDescriptors();
@@ -240,10 +241,9 @@ protected:
     void InitEdges();
     void Allocate();
     void AllocateWithReuse();
-    void CreatePrimitives();
-    void ExtractConstantAndExecutableNodes();
+    void ExtractExecutableNodes();
     void ExecuteNode(const NodePtr& node, const dnnl::stream& stream) const;
-    void ExecuteConstantNodesOnly() const;
+    void CreatePrimitivesAndExecConstants() const;
     void InferStatic(InferRequestBase* request);
     void InferDynamic(InferRequestBase* request);
 
@@ -258,18 +258,19 @@ private:
     std::map<std::string, NodePtr> outputNodesMap;
 
     // these node pointers (from graphNodes) are to avoid regular checking for
-    // constantness of nodes in ExecuteConstantNodesOnly, Infer methods and calls of
+    // constantness of nodes in Infer methods and calls of
     // non-executable (optimized out) nodes, such as Input, Reshape, etc.
-    std::vector<NodePtr> constantGraphNodes;
     std::vector<NodePtr> executableGraphNodes;
 
-    MultiCachePtr rtParamsCache;
-    std::shared_ptr<std::mutex> sharedMutex = nullptr;
-    DnnlScratchPadPtr rtScratchPad;
     std::unordered_map<Node*, size_t> syncNodesInds;
 
+    GraphContext::CPtr context;
+
+    // this field stores the dynamic batch value to provide backward compatibility
+    // with the legacy API dyn batch behaviour
+    int dynBatch = -1;
+
     void EnforceBF16();
-    void setMinSparseRate(float minSparseRate);
 };
 
 }   // namespace intel_cpu

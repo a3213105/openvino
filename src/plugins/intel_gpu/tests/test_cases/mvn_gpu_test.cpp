@@ -1,8 +1,6 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "test_utils.h"
 
@@ -106,112 +104,80 @@ void mvn_compute_mean_within_channels(cldnn::memory::ptr output, bool normalize_
     }
 }
 
-TEST(mvn_gpu_test, mvn_test_across_channels_outside_sqrt_bfyx) {
+template <typename T>
+void test_mvn_test_across_channels_outside_sqrt_bfyx(bool is_caching_test) {
     // mvn across channels fp32 test with normalize_variance set to false
     using namespace cldnn;
     using namespace ::tests;
 
     auto& engine = get_test_engine();
 
-    auto input = engine.allocate_memory({data_types::f32, format::bfyx, {7, 10, 17, 13}});
+    cldnn::data_types input_data_type = std::is_same<T, FLOAT16>::value ? data_types::f16 : data_types::f32;
 
-    tests::set_random_values<float>(input, true, 8, 100);
+    auto input = engine.allocate_memory({input_data_type, format::bfyx, {7, 10, 17, 13}});
+
+    tests::set_random_values<T>(input, true, 8, 100);
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, false, true));
+    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, false, {1, 2, 3}));
 
-    network network(engine, topology);
+    cldnn::network::ptr network = get_network(engine, topology, get_test_default_config(engine), get_test_stream_ptr(), is_caching_test);
 
-    network.set_input_data("input", input);
+    network->set_input_data("input", input);
 
-    auto outputs = network.execute();
+    auto outputs = network->execute();
     ASSERT_EQ(outputs.size(), size_t(1));
     ASSERT_EQ(outputs.begin()->first, "mvn");
 
     auto output = outputs.begin()->second.get_memory();
-    mvn_compute_mean_across_channels<float>(output, false);
+    mvn_compute_mean_across_channels<T>(output, false);
+}
+
+TEST(mvn_gpu_test, mvn_test_across_channels_outside_sqrt_bfyx) {
+    test_mvn_test_across_channels_outside_sqrt_bfyx<float>(false);
+}
+
+template <typename T>
+void test_mvn_test_across_channels_inside_sqrt_bfyx(bool is_caching_test) {
+    // mvn across channels fp32 test with normalize_variance set to false
+    using namespace cldnn;
+    using namespace tests;
+
+    auto& engine = get_test_engine();
+
+    cldnn::data_types input_data_type = std::is_same<T, FLOAT16>::value ? data_types::f16 : data_types::f32;
+
+    auto input = engine.allocate_memory({input_data_type, format::bfyx, {7, 10, 17, 13}});
+
+    tests::set_random_values<T>(input, true, 8, 100);
+
+    topology topology;
+    topology.add(input_layout("input", input->get_layout()));
+    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, true, {1, 2, 3}));
+
+    cldnn::network::ptr network = get_network(engine, topology, get_test_default_config(engine), get_test_stream_ptr(), is_caching_test);
+
+    network->set_input_data("input", input);
+
+    auto outputs = network->execute();
+    ASSERT_EQ(outputs.size(), size_t(1));
+    ASSERT_EQ(outputs.begin()->first, "mvn");
+
+    auto output = outputs.begin()->second.get_memory();
+    mvn_compute_mean_across_channels<T>(output, false);
 }
 
 TEST(mvn_gpu_test, mvn_test_across_channels_inside_sqrt_bfyx) {
-    // mvn across channels fp32 test with normalize_variance set to false
-    using namespace cldnn;
-    using namespace tests;
-
-    auto& engine = get_test_engine();
-
-    auto input = engine.allocate_memory({data_types::f32, format::bfyx, {7, 10, 17, 13}});
-
-    tests::set_random_values<float>(input, true, 8, 100);
-
-    topology topology;
-    topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, true, true));
-
-    network network(engine, topology);
-
-    network.set_input_data("input", input);
-
-    auto outputs = network.execute();
-    ASSERT_EQ(outputs.size(), size_t(1));
-    ASSERT_EQ(outputs.begin()->first, "mvn");
-
-    auto output = outputs.begin()->second.get_memory();
-    mvn_compute_mean_across_channels<float>(output, false);
+    test_mvn_test_across_channels_inside_sqrt_bfyx<float>(false);
 }
 
-TEST(mvn_gpu_test, mvn_test_across_channels_bfyx_outside_sqrt_fp16) {
-    // mvn across channels fp16 test with normalize_variance set to false
-    using namespace cldnn;
-    using namespace ::tests;
-
-    auto& engine = get_test_engine();
-
-    auto input = engine.allocate_memory({data_types::f16, format::bfyx, {7, 10, 17, 13}});
-
-    tests::set_random_values<FLOAT16>(input, true, 8, 100);
-
-    topology topology;
-    topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, false, true));
-
-    network network(engine, topology);
-
-    network.set_input_data("input", input);
-
-    auto outputs = network.execute();
-    ASSERT_EQ(outputs.size(), size_t(1));
-    ASSERT_EQ(outputs.begin()->first, "mvn");
-
-    auto output = outputs.begin()->second.get_memory();
-    mvn_compute_mean_across_channels<FLOAT16>(output, false);
+TEST(mvn_gpu_test, mvn_test_across_channels_outside_sqrt_bfyx_fp16) {
+    test_mvn_test_across_channels_outside_sqrt_bfyx<FLOAT16>(false);
 }
 
 TEST(mvn_gpu_test, mvn_test_across_channels_inside_sqrt_bfyx_fp16) {
-    // mvn across channels fp16 test with normalize_variance set to false
-    using namespace cldnn;
-    using namespace tests;
-
-    auto& engine = get_test_engine();
-
-    auto input = engine.allocate_memory({data_types::f16, format::bfyx, {7, 10, 17, 13}});
-
-    tests::set_random_values<FLOAT16>(input, true, 8, 100);
-
-    topology topology;
-    topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, true, true));
-
-    network network(engine, topology);
-
-    network.set_input_data("input", input);
-
-    auto outputs = network.execute();
-    ASSERT_EQ(outputs.size(), size_t(1));
-    ASSERT_EQ(outputs.begin()->first, "mvn");
-
-    auto output = outputs.begin()->second.get_memory();
-    mvn_compute_mean_across_channels<FLOAT16>(output, false);
+    test_mvn_test_across_channels_inside_sqrt_bfyx<FLOAT16>(false);
 }
 
 TEST(mvn_gpu_test, mvn_test_across_channels_outside_sqrt_bfyx_normalize_variance) {
@@ -227,9 +193,9 @@ TEST(mvn_gpu_test, mvn_test_across_channels_outside_sqrt_bfyx_normalize_variance
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, false, true));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, false, {1, 2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -254,9 +220,9 @@ TEST(mvn_gpu_test, mvn_test_across_channels_inside_sqrt_bfyx_normalize_variance)
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, true));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, {1, 2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -281,9 +247,9 @@ TEST(mvn_gpu_test, mvn_test_across_channels_outside_sqrt_bfyx_normalize_variance
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, false, true));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, false, {1, 2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -308,9 +274,9 @@ TEST(mvn_gpu_test, mvn_test_across_channels_inside_sqrt_bfyx_normalize_variance_
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, true));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, {1, 2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -337,11 +303,11 @@ TEST(mvn_gpu_test, dynamic_across_channels_inside_sqrt_bfyx_normalize_variance_f
 
     topology topology;
     topology.add(input_layout("input", in_layout));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, true));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, {1, 2, 3}));
 
-    build_options bo;
-    bo.set_option(build_option::allow_new_shape_infer(true));
-    network network(engine, topology, bo);
+    ExecutionConfig config = get_test_default_config(engine);
+    config.set_property(ov::intel_gpu::allow_new_shape_infer(true));
+    network network(engine, topology, config);
     network.set_input_data("input", input);
 
     auto inst = network.get_primitive("mvn");
@@ -370,9 +336,9 @@ TEST(mvn_gpu_test, mvn_test_within_channels_outside_sqrt_bfyx) {
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, false, false));
+    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, false, {2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -397,9 +363,9 @@ TEST(mvn_gpu_test, mvn_test_within_channels_inside_sqrt__bfyx) {
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, true, false));
+    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, true, {2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -424,9 +390,9 @@ TEST(mvn_gpu_test, mvn_test_within_channels_outside_sqrt_bfyx_fp16) {
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, false, false));
+    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, false, {2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -451,9 +417,9 @@ TEST(mvn_gpu_test, mvn_test_within_channels_inside_sqrt_bfyx_fp16) {
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, true, false));
+    topology.add(mvn("mvn", input_info("input"), false, 1e-10f, true, {2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -478,9 +444,9 @@ TEST(mvn_gpu_test, mvn_test_within_channels_outside_sqrt_bfyx_normalize_variance
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, false, false));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, false, {2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -505,9 +471,9 @@ TEST(mvn_gpu_test, mvn_test_within_channels_inside_sqrt_bfyx_normalize_variance)
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, false));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, {2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -532,9 +498,9 @@ TEST(mvn_gpu_test, mvn_test_within_channels_outside_sqrt_bfyx_normalize_variance
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, false, false));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, false, {2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
 
@@ -559,11 +525,46 @@ TEST(mvn_gpu_test, mvn_test_within_channels_inside_sqrt_bfyx_normalize_variance_
 
     topology topology;
     topology.add(input_layout("input", input->get_layout()));
-    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, false));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, {2, 3}));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
+
+    auto outputs = network.execute();
+    ASSERT_EQ(outputs.size(), size_t(1));
+    ASSERT_EQ(outputs.begin()->first, "mvn");
+
+    auto output = outputs.begin()->second.get_memory();
+    mvn_compute_mean_within_channels<FLOAT16>(output, true);
+}
+
+TEST(mvn_gpu_test, dynamic_within_channels_inside_sqrt_bfyx_normalize_variance_fp16) {
+    // mvn within channels fp16 test with normalize_variance set to true
+    using namespace cldnn;
+    using namespace ::tests;
+
+    auto& engine = get_test_engine();
+
+    ov::Shape in_shape = {7, 10, 17, 13};
+    auto in_layout = layout{ov::PartialShape::dynamic(in_shape.size()), data_types::f16, format::bfyx};
+    auto input = engine.allocate_memory(layout{ov::PartialShape(in_shape), data_types::f16, format::bfyx});
+
+    tests::set_random_values<FLOAT16>(input, true, 8, 100);
+
+    topology topology;
+    topology.add(input_layout("input", in_layout));
+    topology.add(mvn("mvn", input_info("input"), true, 1e-10f, true, {2, 3}));
+
+    ExecutionConfig config = get_test_default_config(engine);
+    config.set_property(ov::intel_gpu::allow_new_shape_infer(true));
+    network network(engine, topology, config);
+    network.set_input_data("input", input);
+
+    auto inst = network.get_primitive("mvn");
+    auto impl = inst->get_impl();
+    ASSERT_TRUE(impl != nullptr);
+    ASSERT_TRUE(impl->is_dynamic());
 
     auto outputs = network.execute();
     ASSERT_EQ(outputs.size(), size_t(1));
@@ -633,7 +634,7 @@ struct mvn_random_test : ::testing::TestWithParam<mvn_basic_test_params> {
         }
     }
 
-    void execute(const mvn_basic_test_params& params, engine& eng) {
+    void execute(const mvn_basic_test_params& params, engine& eng, bool is_caching_test) {
         auto& size = params.input_size;
         auto& output_pad = params.output_pad;
 
@@ -655,18 +656,18 @@ struct mvn_random_test : ::testing::TestWithParam<mvn_basic_test_params> {
             default:
                 break;
         }
-
+        auto axes = params.across_channels ? std::vector<int64_t>{1, 2, 3} : std::vector<int64_t>{2, 3};
         topology topo;
         topo.add(input_layout("input", input->get_layout()));
-        auto prim = mvn("mvn", input_info("input"), params.normalize_variance, 1e-10f, false, params.across_channels);
+        auto prim = mvn("mvn", input_info("input"), params.normalize_variance, 1e-10f, false, axes);
         prim.output_paddings = {output_pad};
         topo.add(prim);
 
-        network net(eng, topo);
+        cldnn::network::ptr net = get_network(eng, topo, get_test_default_config(eng), get_test_stream_ptr(), is_caching_test);
 
-        net.set_input_data("input", input);
+        net->set_input_data("input", input);
 
-        auto outputs = net.execute();
+        auto outputs = net->execute();
         ASSERT_EQ(outputs.size(), size_t(1));
         ASSERT_EQ(outputs.begin()->first, "mvn");
 
@@ -677,7 +678,7 @@ struct mvn_random_test : ::testing::TestWithParam<mvn_basic_test_params> {
 
 TEST_P(mvn_random_test, random) {
     auto& engine = tests::get_test_engine();
-    this->execute(GetParam(), engine);
+    this->execute(GetParam(), engine, false);
 }
 
 struct mvn_test_case_generator : std::vector<mvn_basic_test_params> {
@@ -824,7 +825,7 @@ struct mvn_random_test_bsv32 : ::testing::TestWithParam<mvn_basic_test_params> {
         }
     }
 
-    void execute(const mvn_basic_test_params& params) {
+    void execute(const mvn_basic_test_params& params, bool is_caching_test) {
         auto& size = params.input_size;
         auto& output_pad = params.output_pad;
         auto& engine = get_test_engine();
@@ -846,35 +847,38 @@ struct mvn_random_test_bsv32 : ::testing::TestWithParam<mvn_basic_test_params> {
                 break;
         }
 
+        auto axes = params.across_channels ? std::vector<int64_t>{1, 2, 3} : std::vector<int64_t>{2, 3};
         topology topo;
         topo.add(input_layout("input", input->get_layout()));
-        auto prim = mvn("mvn", input_info("input"), params.normalize_variance, 1e-10f, false, params.across_channels);
+        auto prim = mvn("mvn", input_info("input"), params.normalize_variance, 1e-10f, false, axes);
         prim.output_paddings = {output_pad};
         topo.add(prim);
-        auto build_opts = build_options();
-        build_opts.set_option(build_option::outputs({"mvn"}));
-        build_opts.set_option(build_option::force_implementations({ {"mvn", {format::type::bfyx, "mvn_gpu_bfyx_opt"}} }));
+        ExecutionConfig config = get_test_default_config(engine);
+        config.set_property(ov::intel_gpu::custom_outputs(std::vector<std::string>{"mvn"}));
+        config.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ {"mvn", {format::type::bfyx, "mvn_gpu_bfyx_opt"}} }));
 
-        network net(engine, topo, build_opts);
-        net.set_input_data("input", input);
+        cldnn::network::ptr net = get_network(engine, topo, config, get_test_stream_ptr(), is_caching_test);
 
-        auto outputs = net.execute();
+        net->set_input_data("input", input);
+
+        auto outputs = net->execute();
         auto output = outputs.at("mvn").get_memory();
 
         topology topo_opt;
         topo_opt.add(input_layout("input", input->get_layout()));
         topo_opt.add(reorder("input_to_target_layout", input_info("input"), {params.input_type, params.input_format, size}));
-        auto prim_opt = mvn("mvn_opt", input_info("input_to_target_layout"), params.normalize_variance, 1e-10f, false, params.across_channels);
+        auto prim_opt = mvn("mvn_opt", input_info("input_to_target_layout"), params.normalize_variance, 1e-10f, false, axes);
         prim_opt.output_paddings = {output_pad};
         topo_opt.add(prim_opt);
-        auto build_opts_opt = build_options();
-        build_opts_opt.set_option(build_option::outputs({"mvn_opt", "input_to_target_layout"}));
-        build_opts_opt.set_option(build_option::force_implementations({ {"mvn_opt", {params.input_format, "mvn_gpu_b_fs_yx_fsv16_imad"}} }));
+        ExecutionConfig config_opt = get_test_default_config(engine);
+        config_opt.set_property(ov::intel_gpu::custom_outputs(std::vector<std::string>{"mvn_opt", "input_to_target_layout"}));
+        config_opt.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ {"mvn_opt", {params.input_format, "mvn_gpu_b_fs_yx_fsv16_imad"}} }));
 
-        network net_opt(engine, topo_opt, build_opts_opt);
-        net_opt.set_input_data("input", input);
+        cldnn::network::ptr net_opt = get_network(engine, topo_opt, config_opt, get_test_stream_ptr(), is_caching_test);
 
-        auto outputs_opt = net_opt.execute();
+        net_opt->set_input_data("input", input);
+
+        auto outputs_opt = net_opt->execute();
         auto output_opt = outputs_opt.at("mvn_opt").get_memory();
 
         auto output_dtype = output->get_layout().data_type;
@@ -900,7 +904,7 @@ struct mvn_random_test_bsv32 : ::testing::TestWithParam<mvn_basic_test_params> {
 };
 
 TEST_P(mvn_random_test_bsv32, random) {
-    this->execute(GetParam());
+    this->execute(GetParam(), false);
 }
 
 struct mvn_test_case_generator_bsv32 : std::vector<mvn_basic_test_params> {
@@ -931,3 +935,29 @@ INSTANTIATE_TEST_SUITE_P(mvn_fsv16,
                         mvn_random_test_bsv32,
                         testing::ValuesIn(mvn_test_case_generator_bsv32()
                                               .bsv32_tests(format::b_fs_yx_fsv16, data_types::i8)));
+
+TEST(mvn_gpu_test, mvn_test_across_channels_outside_sqrt_bfyx_cached) {
+    test_mvn_test_across_channels_outside_sqrt_bfyx<float>(true);
+}
+#ifdef RUN_ALL_MODEL_CACHING_TESTS
+TEST(mvn_gpu_test, mvn_test_across_channels_inside_sqrt_bfyx_cached) {
+    test_mvn_test_across_channels_inside_sqrt_bfyx<float>(true);
+}
+
+TEST(mvn_gpu_test, mvn_test_across_channels_outside_sqrt_bfyx_fp16_cached) {
+    test_mvn_test_across_channels_outside_sqrt_bfyx<FLOAT16>(true);
+}
+
+TEST(mvn_gpu_test, mvn_test_across_channels_inside_sqrt_bfyx_fp16_cached) {
+    test_mvn_test_across_channels_inside_sqrt_bfyx<FLOAT16>(true);
+}
+
+TEST_P(mvn_random_test, random_cached) {
+    auto& engine = tests::get_test_engine();
+    this->execute(GetParam(), engine, true);
+}
+
+TEST_P(mvn_random_test_bsv32, random_cached) {
+    this->execute(GetParam(), true);
+}
+#endif

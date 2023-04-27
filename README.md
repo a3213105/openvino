@@ -2,11 +2,12 @@
 
 <img src="docs/img/openvino-logo-purple-black.png" width="400px">
 
-[![Stable release](https://img.shields.io/badge/version-2022.2-green.svg)](https://github.com/openvinotoolkit/openvino/releases/tag/2022.2.0)
+[![Stable release](https://img.shields.io/badge/version-2022.3-green.svg)](https://github.com/openvinotoolkit/openvino/releases/tag/2022.3.0)
 [![Apache License Version 2.0](https://img.shields.io/badge/license-Apache_2.0-green.svg)](LICENSE)
 ![GitHub branch checks state](https://img.shields.io/github/checks-status/openvinotoolkit/openvino/master?label=GitHub%20checks)
 ![Azure DevOps builds (branch)](https://img.shields.io/azure-devops/build/openvinoci/b2bab62f-ab2f-4871-a538-86ea1be7d20f/13?label=Public%20CI)
 [![PyPI Status](https://badge.fury.io/py/openvino.svg)](https://badge.fury.io/py/openvino)
+[![Anaconda Status](https://anaconda.org/conda-forge/openvino/badges/version.svg)](https://anaconda.org/conda-forge/openvino/badges/version.svg)
 [![PyPI Downloads](https://pepy.tech/badge/openvino)](https://pepy.tech/project/openvino)
  
  </div>
@@ -34,7 +35,7 @@ OpenVINO™ is an open-source toolkit for optimizing and deploying AI inference.
  - Reduce resource demands and efficiently deploy on a range of Intel® platforms from edge to cloud
 
 
-This open-source version includes several components: namely [Model Optimizer], [OpenVINO™ Runtime], [Post-Training Optimization Tool], as well as CPU, GPU, MYRIAD, multi device and heterogeneous plugins to accelerate deep learning inference on Intel® CPUs and Intel® Processor Graphics.
+This open-source version includes several components: namely [Model Optimizer], [OpenVINO™ Runtime], [Post-Training Optimization Tool], as well as CPU, GPU, GNA, multi device and heterogeneous plugins to accelerate deep learning inference on Intel® CPUs and Intel® Processor Graphics.
 It supports pre-trained models from [Open Model Zoo], along with 100+ open
 source and public models in popular formats such as TensorFlow, ONNX, PaddlePaddle, MXNet, Caffe, Kaldi.
 
@@ -90,12 +91,6 @@ The OpenVINO™ Runtime can infer models on different hardware devices. This sec
             <td><b><i><a href="./src/plugins/intel_gna">openvino_intel_gna_plugin</a></i></b></td>
             <td>Intel Speech Enabling Developer Kit, Amazon Alexa* Premium Far-Field Developer Kit, Intel Pentium Silver J5005 Processor, Intel Pentium Silver N5000 Processor, Intel Celeron J4005 Processor, Intel Celeron J4105 Processor, Intel Celeron Processor N4100, Intel Celeron Processor N4000, Intel Core i3-8121U Processor, Intel Core i7-1065G7 Processor, Intel Core i7-1060G7 Processor, Intel Core i5-1035G4 Processor, Intel Core i5-1035G7 Processor, Intel Core i5-1035G1 Processor, Intel Core i5-1030G7 Processor, Intel Core i5-1030G4 Processor, Intel Core i3-1005G1 Processor, Intel Core i3-1000G1 Processor, Intel Core i3-1000G4 Processor</td>
         </tr>
-        <tr>
-            <td>VPU</td>
-            <td><a href="https://docs.openvino.ai/nightly/openvino_docs_IE_DG_supported_plugins_VPU.html#doxid-openvino-docs-i-e-d-g-supported-plugins-v-p-u">Myriad plugin</a></td>
-            <td><b><i><a href="./src/plugins/intel_myriad">openvino_intel_myriad_plugin</a></i></b></td>
-            <td>Intel® Neural Compute Stick 2 powered by the Intel® Movidius™ Myriad™ X</td>
-        </tr>
     </tbody>
 </table>
 
@@ -150,7 +145,7 @@ The latest documentation for OpenVINO™ Toolkit is available [here](https://doc
 
 The list of OpenVINO tutorials:
 
-- [Jupiter notebooks](https://github.com/openvinotoolkit/openvino_notebooks)
+- [Jupyter notebooks](https://github.com/openvinotoolkit/openvino_notebooks)
 
 ## Products which use OpenVINO
 
@@ -169,7 +164,7 @@ The system requirements vary depending on platform and are available on dedicate
 
 ## How to build
 
-See the [OpenVINO Wiki](https://github.com/openvinotoolkit/openvino/wiki#how-to-build) to get more information about the OpenVINO build process.
+See [How to build OpenVINO](./docs/dev/build.md) to get more information about the OpenVINO build process.
 
 ## How to contribute
 

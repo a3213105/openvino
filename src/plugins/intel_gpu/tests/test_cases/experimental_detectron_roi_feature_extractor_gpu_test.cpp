@@ -53,24 +53,7 @@ void test_experimental_detectron_roi_feature_extractor_gpu_fp32_one_level(bool i
     topology.add(activation(activation_abs_id, feature_extractor_id,  activation_func::abs));
     topology.add(mutable_data(second_output_r_id, {feature_extractor_id}, second_output));
 
-    cldnn::network::ptr network;
-
-    if (is_caching_test) {
-        membuf mem_buf;
-        {
-            cldnn::network _network(engine, topology);
-            std::ostream out_mem(&mem_buf);
-            BinaryOutputBuffer ob = BinaryOutputBuffer(out_mem);
-            _network.save(ob);
-        }
-        {
-            std::istream in_mem(&mem_buf);
-            BinaryInputBuffer ib = BinaryInputBuffer(in_mem, engine);
-            network = std::make_shared<cldnn::network>(ib, get_test_stream_ptr(), engine);
-        }
-    } else {
-        network = std::make_shared<cldnn::network>(engine, topology);
-    }
+    cldnn::network::ptr network = get_network(engine, topology, get_test_default_config(engine), get_test_stream_ptr(), is_caching_test);
 
     network->set_input_data(input_rois_id, roi_input);
     network->set_input_data(input_level_1_id, level_1);
@@ -122,10 +105,17 @@ TEST(experimental_detectron_roi_feature_extractor_gpu_fp32, two_levels) {
     const std::vector<int64_t> pyramid_scales = {4, 224};
     const int sampling_ratio = 2;
     const bool aligned = false;
+    auto level_1_layout = layout{data_types::f32, format::bfyx, {1, 2, 3, 2}};
+    auto level_2_layout = layout{data_types::f32, format::bfyx, {1, 2, 3, 2}};
     auto roi_input = engine.allocate_memory({data_types::f32, format::bfyx, tensor(batch(rois_num), feature(rois_feature_dim))});
-    auto level_1 = engine.allocate_memory({data_types::f32, format::bfyx, {1, 2, 3, 2}});
-    auto level_2 = engine.allocate_memory({data_types::f32, format::bfyx, {1, 2, 3, 2}});
+    auto level_1 = engine.allocate_memory(level_1_layout);
+    auto level_2 = engine.allocate_memory(level_2_layout);
     auto second_output = engine.allocate_memory({ data_types::f32, format::bfyx, tensor(batch(rois_num), feature(rois_feature_dim))});
+
+    auto level_1_padded_layout = level_1_layout;
+    level_1_padded_layout.data_padding = padding({0, 0, 1, 1}, {0, 0, 1, 1});
+    auto level_2_padded_layout = level_2_layout;
+    level_2_padded_layout.data_padding = padding({0, 1, 1, 1}, {0, 1, 1, 1});
 
     std::vector<float> rois {0.0f, 56.0f, 112.0f, 168.0f, 4.0f, 5.0f, 6.0f, 7.0f};
     set_values(roi_input, rois);
@@ -135,6 +125,8 @@ TEST(experimental_detectron_roi_feature_extractor_gpu_fp32, two_levels) {
     const std::string input_rois_id = "InputRois";
     const std::string input_level_1_id = "InputLevel1";
     const std::string input_level_2_id = "InputLevel2";
+    const std::string input_level_1_pad_id = "InputLevel1_padding";
+    const std::string input_level_2_pad_id = "InputLevel2_padding";
     const std::string second_output_w_id = "second_output_w";
     const std::string second_output_r_id = "second_output_r";
     const std::string feature_extractor_id = "experimental_detectron_roi_feature_extractor";
@@ -143,9 +135,14 @@ TEST(experimental_detectron_roi_feature_extractor_gpu_fp32, two_levels) {
     topology.add(input_layout(input_rois_id, roi_input->get_layout()));
     topology.add(input_layout(input_level_1_id, level_1->get_layout()));
     topology.add(input_layout(input_level_2_id, level_2->get_layout()));
+    topology.add(reorder(input_level_1_pad_id, input_info(input_level_1_id), level_1_padded_layout));
+    topology.add(reorder(input_level_2_pad_id, input_info(input_level_2_id), level_2_padded_layout));
     topology.add(mutable_data(second_output_w_id, second_output));
     topology.add(experimental_detectron_roi_feature_extractor(feature_extractor_id,
-                                                              { input_info(input_rois_id), input_info(input_level_1_id), input_info(input_level_2_id), input_info(second_output_w_id) },
+                                                              { input_info(input_rois_id),
+                                                                input_info(input_level_1_pad_id),
+                                                                input_info(input_level_2_pad_id),
+                                                                input_info(second_output_w_id) },
                                                               output_dim,
                                                               pyramid_scales,
                                                               sampling_ratio,
@@ -153,7 +150,7 @@ TEST(experimental_detectron_roi_feature_extractor_gpu_fp32, two_levels) {
     topology.add(activation(activation_abs_id, feature_extractor_id, activation_func::abs));
     topology.add(mutable_data(second_output_r_id, {feature_extractor_id}, second_output));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data(input_rois_id, roi_input);
     network.set_input_data(input_level_1_id, level_1);
@@ -249,7 +246,7 @@ TEST(experimental_detectron_roi_feature_extractor_gpu_fp32, multiple_feature_ext
     topology.add(activation(activation_abs_second_instance_id, input_info(feature_extractor_second_instance_id),  activation_func::abs));
     topology.add(mutable_data(second_output_r_second_instance_id, { input_info(feature_extractor_second_instance_id) }, second_output_second_instance));
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data(input_rois_first_instance_id, roi_input_first_instance);
     network.set_input_data(input_rois_second_instance_id, roi_input_second_instance);

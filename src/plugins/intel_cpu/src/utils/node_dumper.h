@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 #pragma once
@@ -20,7 +20,7 @@ class DumpHelper {
 
 public:
     explicit DumpHelper(const NodePtr& _node, const DebugCapsConfig& _config, int _count = -1):
-        node(_node), config(_config), count(_count) {
+        node(_node), count(_count), config(_config) {
         dumpInputBlobs(node, config, count);
     }
 

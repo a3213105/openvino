@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "exceptions.hpp"
 #include "ngraph/op/constant.hpp"
 #include "ngraph/shape.hpp"
 #include "ngraph/type/element_type.hpp"
@@ -28,6 +29,7 @@ using TensorProto_DataType = decltype(ONNX_NAMESPACE::TensorProto{}.data_type())
 
 namespace error {
 namespace tensor {
+OPENVINO_SUPPRESS_DEPRECATED_START
 struct invalid_data_type : ngraph_error {
     explicit invalid_data_type(TensorProto_DataType type) : ngraph_error{"invalid data type"} {}
 };
@@ -55,6 +57,7 @@ struct segments_unsupported : ngraph_error {
 struct shape_doesnt_match_data_size : ngraph_error {
     shape_doesnt_match_data_size() : ngraph_error{"tensor shape doesn't match data size"} {}
 };
+OPENVINO_SUPPRESS_DEPRECATED_END
 }  // namespace tensor
 }  // namespace error
 
@@ -234,10 +237,15 @@ private:
                                       bool>::type = true>
     std::shared_ptr<ngraph::op::Constant> make_ng_constant(const element::Type& type) const {
         std::shared_ptr<default_opset::Constant> constant{nullptr};
-        int data_size = get_data_size();
+        size_t data_size = get_data_size();
         if (has_external_data()) {
             auto external_data = load_external_data();
             constant = std::make_shared<ngraph::op::Constant>(type, m_shape, external_data.data());
+            if (constant->get_byte_size() != external_data.size()) {
+                throw error::invalid_external_data(
+                    "The size of the external data file does not match the byte size of an initializer '" + get_name() +
+                    "' in the model");
+            }
         } else if (data_size == shape_size(m_shape)) {
             constant = std::make_shared<ngraph::op::Constant>(type, m_shape, get_data_ptr());
         } else if (data_size == 0 && m_shape.size() == 0) {

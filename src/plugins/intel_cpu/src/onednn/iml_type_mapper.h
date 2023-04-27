@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -28,18 +28,19 @@ enum impl_desc_type {
     blas   = 1<<17,
     any    = 1<<18,
     uni    = 1<<19,
+    acl    = 1<<20,
     // Other specificator
-    _1x1    = 1<<20,
-    _dw     = 1<<21,
+    _1x1    = 1<<21,
+    _dw     = 1<<22,
     // Other info
-    reorder = 1<<22,
+    reorder = 1<<23,
     // winograd
-    winograd = 1<<23,
+    winograd = 1<<24,
     // sparse
-    sparse = 1<<24,
+    sparse = 1<<25,
 
-    vnni   = 1<<24,
-    core   = 1<<25,
+    vnni   = 1<<26,
+    core   = 1<<27,
     // real types
     ref_any             = ref  | any,
 
@@ -47,6 +48,7 @@ enum impl_desc_type {
     gemm_blas           = gemm | blas,
     gemm_avx512         = gemm | avx512,
     gemm_avx2           = gemm | avx2,
+    gemm_avx2_vnni      = gemm | avx2   | vnni,
     gemm_avx            = gemm | avx,
     gemm_sse42          = gemm | sse42,
     gemm_avx512_core    = gemm | avx512 | core,
@@ -58,6 +60,7 @@ enum impl_desc_type {
     jit_avx512_winograd = jit  | avx512 | winograd,
     jit_avx512          = jit  | avx512,
     jit_avx2            = jit  | avx2,
+    jit_avx2_vnni       = jit  | avx2   | vnni,
     jit_avx             = jit  | avx,
     jit_sse42           = jit  | sse42,
     jit_uni             = jit  | uni,
@@ -67,6 +70,7 @@ enum impl_desc_type {
 
     jit_avx512_1x1      = jit  | avx512 | _1x1,
     jit_avx2_1x1        = jit  | avx2   | _1x1,
+    jit_avx2_vnni_1x1   = jit  | avx2   | vnni | _1x1,
     jit_avx_1x1         = jit  | avx    | _1x1,
     jit_sse42_1x1       = jit  | sse42  | _1x1,
     jit_uni_1x1         = jit  | uni    | _1x1,
@@ -77,6 +81,7 @@ enum impl_desc_type {
 
     jit_avx512_dw       = jit  | avx512 | _dw,
     jit_avx2_dw         = jit  | avx2   | _dw,
+    jit_avx2_vnni_dw    = jit  | avx2   | vnni | _dw,
     jit_avx_dw          = jit  | avx    | _dw,
     jit_sse42_dw        = jit  | sse42  | _dw,
     jit_uni_dw          = jit  | uni    | _dw,
@@ -87,6 +92,7 @@ enum impl_desc_type {
 
     brgconv_avx512      = brgconv  | avx512,
     brgconv_avx2        = brgconv  | avx2,
+    brgconv_avx2_vnni   = brgconv  | avx2   | vnni,
     brgconv_avx         = brgconv  | avx,
     brgconv_sse42       = brgconv  | sse42,
     brgconv_uni         = brgconv  | uni,
@@ -95,10 +101,11 @@ enum impl_desc_type {
     brgconv_avx512_amx  = brgconv  | avx512 | amx,
 
     brgconv_avx512_1x1      = brgconv  | avx512 | _1x1,
-    brgconv_avx2_1x1        = brgconv  | avx2 | _1x1,
-    brgconv_avx_1x1         = brgconv  | avx | _1x1,
-    brgconv_sse42_1x1       = brgconv  | sse42 | _1x1,
-    brgconv_uni_1x1         = brgconv  | uni | _1x1,
+    brgconv_avx2_1x1        = brgconv  | avx2   | _1x1,
+    brgconv_avx2_vnni_1x1   = brgconv  | avx2   | vnni | _1x1,
+    brgconv_avx_1x1         = brgconv  | avx    | _1x1,
+    brgconv_sse42_1x1       = brgconv  | sse42  | _1x1,
+    brgconv_uni_1x1         = brgconv  | uni    | _1x1,
     brgconv_avx512_core_1x1 = brgconv  | avx512 | core | _1x1,
     brgconv_avx512_vnni_1x1 = brgconv  | avx512 | core | vnni | _1x1,
 
@@ -106,6 +113,7 @@ enum impl_desc_type {
 
     brgemm_avx512      = brgemm  | avx512,
     brgemm_avx2        = brgemm  | avx2,
+    brgemm_avx2_vnni   = brgemm  | avx2   | vnni,
     brgemm_avx         = brgemm  | avx,
     brgemm_sse42       = brgemm  | sse42,
     brgemm_uni         = brgemm  | uni,
@@ -113,6 +121,10 @@ enum impl_desc_type {
     brgemm_avx512_vnni = brgemm  | avx512 | core | vnni,
     brgemm_avx512_amx  = brgemm  | avx512 | amx,
     brgemm_sparse_avx512_amx = brgemm | sparse | avx512 | amx,
+
+    dw_acl             = _dw | acl,
+    gemm_acl           = gemm | acl,
+    winograd_acl       = winograd | acl,
 };
 
 const char * impl_type_to_string(impl_desc_type type);

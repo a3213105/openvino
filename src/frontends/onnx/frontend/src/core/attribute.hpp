@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -27,9 +27,11 @@ using AttributeProto_AttributeType = decltype(ONNX_NAMESPACE::AttributeProto{}.t
 namespace error {
 namespace attribute {
 namespace detail {
+OPENVINO_SUPPRESS_DEPRECATED_START
 struct Attribute : ngraph_error {
     Attribute(const std::string& msg, AttributeProto_AttributeType type) : ngraph_error{msg} {}
 };
+OPENVINO_SUPPRESS_DEPRECATED_END
 
 }  // namespace detail
 
@@ -265,7 +267,7 @@ public:
     const std::string& get_string() const {
         return m_attribute_proto->s();
     }
-    Subgraph get_subgraph(const Graph* parent_graph) const;
+    Subgraph get_subgraph(Graph* parent_graph) const;
 
     std::vector<Tensor> get_tensor_array() const {
         std::vector<Tensor> ret;

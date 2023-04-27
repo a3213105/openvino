@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -20,15 +20,15 @@ static void CreateProposalOp(Program& p, const std::shared_ptr<ngraph::op::v0::P
 
     auto attrs = op->get_attrs();
     float nms_thresh = attrs.nms_thresh;
-    int min_size = attrs.min_size;
-    int feature_stride = attrs.feat_stride;
-    int pre_nms_topn = attrs.pre_nms_topn;
-    int post_nms_topn = attrs.post_nms_topn;
+    int min_size = static_cast<int>(attrs.min_size);
+    int feature_stride = static_cast<int>(attrs.feat_stride);
+    int pre_nms_topn = static_cast<int>(attrs.pre_nms_topn);
+    int post_nms_topn = static_cast<int>(attrs.post_nms_topn);
     const std::vector<float> ratio = attrs.ratio;
     const std::vector<float> scale = attrs.scale;
     float box_coordinate_scale = attrs.box_coordinate_scale;
     float box_size_scale = attrs.box_size_scale;
-    int base_size = attrs.base_size;
+    int base_size = static_cast<int>(attrs.base_size);
     std::string framework = attrs.framework;
     bool normalize = attrs.normalize;
     bool clip_before_nms = attrs.clip_before_nms;
@@ -65,7 +65,7 @@ static void CreateProposalOp(Program& p, const std::shared_ptr<ngraph::op::v0::P
                                                     tensor_from_dims(op->get_output_shape(1)));
 
         GPU_DEBUG_LOG << "[" << layer_type_name_ID(op) << ": mutable data]" << std::endl;
-        auto shared_memory = p.GetEngine().allocate_memory(mutableLayout);
+        auto shared_memory = p.get_engine().allocate_memory(mutableLayout);
 
         cldnn::primitive_id proposal_mutable_id_w = layer_type_name_ID(op) + "_md_write";
         auto argmax_mutable_prim = cldnn::mutable_data(proposal_mutable_id_w,

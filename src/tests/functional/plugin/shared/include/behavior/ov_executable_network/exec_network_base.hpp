@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifcorer: Apache-2.0
 //
 
@@ -15,6 +15,8 @@
 namespace ov {
 namespace test {
 namespace behavior {
+
+// ===================== DEPRECATED =====================
 
 class OVExecutableNetworkBaseTest : public testing::WithParamInterface<InferRequestParams>,
                                     public OVCompiledNetworkTestBase {
@@ -52,26 +54,6 @@ public:
         APIBaseTest::TearDown();
     }
 
-    bool compareTensors(const ov::Tensor& t1, const ov::Tensor& t2) {
-        void* data1;
-        void* data2;
-        try {
-            data1 = t1.data();
-        } catch (const ov::Exception&) {
-            // Remote tensor
-            data1 = nullptr;
-        }
-        try {
-            data2 = t2.data();
-        } catch (const ov::Exception&) {
-            // Remote tensor
-            data2 = nullptr;
-        }
-        return t1.get_element_type() == t2.get_element_type() && t1.get_shape() == t2.get_shape() &&
-               t1.get_byte_size() == t2.get_byte_size() && t1.get_size() == t2.get_size() &&
-               t1.get_strides() == t2.get_strides() && data1 == data2;
-    }
-
 protected:
     std::shared_ptr<ov::Core> core = utils::PluginCache::get().core();
     ov::AnyMap configuration;
@@ -80,8 +62,64 @@ protected:
     void set_api_entity() override { api_entity = ov::test::utils::ov_entity::ov_compiled_model; }
 };
 
+using OVAutoExecutableNetworkTest = OVExecutableNetworkBaseTest;
+
 TEST_P(OVExecutableNetworkBaseTest, canLoadCorrectNetworkToGetExecutable) {
     EXPECT_NO_THROW(auto execNet = core->compile_model(function, target_device, configuration));
+}
+
+TEST_P(OVExecutableNetworkBaseTest, canLoadNetworkFromMemory) {
+    std::string model = R"V0G0N(
+        <net name="Network" version="10">
+            <layers>
+                <layer name="in1" type="Parameter" id="0" version="opset8">
+                    <data element_type="f16" shape="1,3,22,22"/>
+                    <output>
+                        <port id="0" precision="FP16" names="data">
+                            <dim>1</dim>
+                            <dim>3</dim>
+                            <dim>22</dim>
+                            <dim>22</dim>
+                        </port>
+                    </output>
+                </layer>
+                <layer name="round" id="1" type="Round" version="opset8">
+                    <data mode="half_to_even"/>
+                    <input>
+                        <port id="1" precision="FP16">
+                            <dim>1</dim>
+                            <dim>3</dim>
+                            <dim>22</dim>
+                            <dim>22</dim>
+                        </port>
+                    </input>
+                    <output>
+                        <port id="2" precision="FP16" names="r">
+                            <dim>1</dim>
+                            <dim>3</dim>
+                            <dim>22</dim>
+                            <dim>22</dim>
+                        </port>
+                    </output>
+                </layer>
+                <layer name="output" type="Result" id="2" version="opset8">
+                    <input>
+                        <port id="0" precision="FP16">
+                            <dim>1</dim>
+                            <dim>3</dim>
+                            <dim>22</dim>
+                            <dim>22</dim>
+                        </port>
+                    </input>
+                </layer>
+            </layers>
+            <edges>
+                <edge from-layer="0" from-port="0" to-layer="1" to-port="1"/>
+                <edge from-layer="1" from-port="2" to-layer="2" to-port="0"/>
+            </edges>
+        </net>
+        )V0G0N";
+    EXPECT_NO_THROW(auto execNet = core->compile_model(model, ov::Tensor(), target_device, configuration));
 }
 
 TEST(OVExecutableNetworkBaseTest, smoke_LoadNetworkToDefaultDeviceNoThrow) {
@@ -89,11 +127,6 @@ TEST(OVExecutableNetworkBaseTest, smoke_LoadNetworkToDefaultDeviceNoThrow) {
     std::shared_ptr<ov::Core> core = utils::PluginCache::get().core();
     std::shared_ptr<ov::Model> function = ngraph::builder::subgraph::makeConvPoolRelu();
     EXPECT_NO_THROW(auto execNet = core->compile_model(function));
-}
-
-TEST_P(OVExecutableNetworkBaseTest, canLoadCorrectNetworkToGetExecutableWithIncorrectConfig) {
-    ov::AnyMap incorrectConfig = {{"abc", "def"}};
-    EXPECT_ANY_THROW(auto execNet = core->compile_model(function, target_device, incorrectConfig));
 }
 
 TEST_P(OVExecutableNetworkBaseTest, canLoadCorrectNetworkToGetExecutableAndCreateInferRequest) {
@@ -321,6 +354,34 @@ TEST_P(OVExecutableNetworkBaseTest, CheckExecGraphInfoAfterExecution) {
     }
 }
 
+TEST_P(OVExecutableNetworkBaseTest, LoadNetworkCreateDefaultExecGraphResult) {
+    auto net = core->compile_model(function, target_device, configuration);
+    auto runtime_function = net.get_runtime_model();
+    ASSERT_NE(nullptr, runtime_function);
+    auto actual_parameters = runtime_function->get_parameters();
+    auto actual_results = runtime_function->get_results();
+    auto expected_parameters = function->get_parameters();
+    auto expected_results = function->get_results();
+    ASSERT_EQ(expected_parameters.size(), actual_parameters.size());
+    for (std::size_t i = 0; i < expected_parameters.size(); ++i) {
+        auto expected_element_type = expected_parameters[i]->get_output_element_type(0);
+        auto actual_element_type = actual_parameters[i]->get_output_element_type(0);
+        ASSERT_EQ(expected_element_type, actual_element_type) << "For index: " << i;
+        auto expected_shape = expected_parameters[i]->get_output_shape(0);
+        auto actual_shape = actual_parameters[i]->get_output_shape(0);
+        ASSERT_EQ(expected_shape, actual_shape) << "For index: " << i;
+    }
+    ASSERT_EQ(expected_results.size(), actual_results.size());
+    for (std::size_t i = 0; i < expected_results.size(); ++i) {
+        auto expected_element_type = expected_results[i]->get_input_element_type(0);
+        auto actual_element_type = actual_results[i]->get_input_element_type(0);
+        ASSERT_EQ(expected_element_type, actual_element_type) << "For index: " << i;
+        auto expected_shape = expected_results[i]->get_input_shape(0);
+        auto actual_shape = actual_results[i]->get_input_shape(0);
+        ASSERT_EQ(expected_shape, actual_shape) << "For index: " << i;
+    }
+}
+
 TEST_P(OVExecutableNetworkBaseTest, canExport) {
     auto ts = CommonTestUtils::GetTimestamp();
     std::string modelName = GetTestName().substr(0, CommonTestUtils::maxFileNameLength) + "_" + ts;
@@ -339,8 +400,6 @@ TEST_P(OVExecutableNetworkBaseTest, pluginDoesNotChangeOriginalNetwork) {
 }
 
 TEST_P(OVExecutableNetworkBaseTest, getInputFromFunctionWithSingleInput) {
-    // Skip test according to plugin specific disabledTestPatterns() (if any)
-    SKIP_IF_CURRENT_TEST_IS_DISABLED()
     ov::CompiledModel execNet;
 
     execNet = core->compile_model(function, target_device, configuration);
@@ -350,24 +409,9 @@ TEST_P(OVExecutableNetworkBaseTest, getInputFromFunctionWithSingleInput) {
     EXPECT_EQ(function->input().get_tensor().get_names(), execNet.input().get_tensor().get_names());
     EXPECT_EQ(function->input().get_tensor().get_partial_shape(), execNet.input().get_tensor().get_partial_shape());
     EXPECT_EQ(function->input().get_tensor().get_element_type(), execNet.input().get_tensor().get_element_type());
-
-    ov::InferRequest request = execNet.create_infer_request();
-
-    ov::Tensor tensor1, tensor2;
-    EXPECT_NO_THROW(tensor1 = request.get_tensor(execNet.input()));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->input()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(execNet.input().get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->input().get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_input_tensor(0));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
 }
 
 TEST_P(OVExecutableNetworkBaseTest, getOutputFromFunctionWithSingleInput) {
-    // Skip test according to plugin specific disabledTestPatterns() (if any)
-    SKIP_IF_CURRENT_TEST_IS_DISABLED()
     ov::CompiledModel execNet;
 
     execNet = core->compile_model(function, target_device, configuration);
@@ -377,23 +421,9 @@ TEST_P(OVExecutableNetworkBaseTest, getOutputFromFunctionWithSingleInput) {
     EXPECT_EQ(function->output().get_tensor().get_names(), execNet.output().get_tensor().get_names());
     EXPECT_EQ(function->output().get_tensor().get_partial_shape(), execNet.output().get_tensor().get_partial_shape());
     EXPECT_EQ(function->output().get_tensor().get_element_type(), execNet.output().get_tensor().get_element_type());
-
-    ov::InferRequest request = execNet.create_infer_request();
-    ov::Tensor tensor1, tensor2;
-    EXPECT_NO_THROW(tensor1 = request.get_tensor(execNet.output()));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(execNet.output().get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output().get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_output_tensor(0));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
 }
 
 TEST_P(OVExecutableNetworkBaseTest, getInputsFromFunctionWithSeveralInputs) {
-    // Skip test according to plugin specific disabledTestPatterns() (if any)
-    SKIP_IF_CURRENT_TEST_IS_DISABLED()
     ov::CompiledModel execNet;
 
     // Create simple function
@@ -432,34 +462,6 @@ TEST_P(OVExecutableNetworkBaseTest, getInputsFromFunctionWithSeveralInputs) {
     EXPECT_NE(function->input(1).get_node(), function->input("data1").get_node());
     EXPECT_EQ(function->input(1).get_node(), function->input("data2").get_node());
     EXPECT_NE(function->input(0).get_node(), function->input("data2").get_node());
-
-    ov::InferRequest request = execNet.create_infer_request();
-
-    ov::Tensor tensor1, tensor2;
-    EXPECT_NO_THROW(tensor1 = request.get_tensor(execNet.input(0)));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->input(0)));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(execNet.input(0).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->input(0).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_input_tensor(0));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor1 = request.get_tensor(execNet.input(1)));
-    try {
-        // To avoid case with remote tensors
-        tensor1.data();
-        EXPECT_FALSE(compareTensors(tensor1, tensor2));
-    } catch (const ov::Exception&) {
-    }
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->input(1)));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(execNet.input(1).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->input(1).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_input_tensor(1));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
 }
 
 TEST_P(OVExecutableNetworkBaseTest, getOutputsFromFunctionWithSeveralOutputs) {
@@ -503,41 +505,10 @@ TEST_P(OVExecutableNetworkBaseTest, getOutputsFromFunctionWithSeveralOutputs) {
     EXPECT_NE(function->output(1).get_node(), function->output("relu").get_node());
     EXPECT_EQ(function->output(1).get_node(), function->output("concat").get_node());
     EXPECT_NE(function->output(0).get_node(), function->output("concat").get_node());
-
-    ov::InferRequest request = execNet.create_infer_request();
-
-    ov::Tensor tensor1, tensor2;
-    EXPECT_NO_THROW(tensor1 = request.get_tensor(execNet.output(0)));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output(0)));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(execNet.output(0).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output(0).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_output_tensor(0));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor1 = request.get_tensor(execNet.output(1)));
-    try {
-        // To avoid case with remote tensors
-        tensor1.data();
-        EXPECT_FALSE(compareTensors(tensor1, tensor2));
-    } catch (const ov::Exception&) {
-    }
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output(1)));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(execNet.output(1).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output(1).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_output_tensor(1));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
 }
 
 TEST_P(OVExecutableNetworkBaseTest, getOutputsFromSplitFunctionWithSeveralOutputs) {
-    // Skip test according to plugin specific disabledTestPatterns() (if any)
-    SKIP_IF_CURRENT_TEST_IS_DISABLED()
     ov::CompiledModel execNet;
-
     // Create simple function
     {
         auto param1 = std::make_shared<ov::opset8::Parameter>(ov::element::Type_t::f32, ngraph::Shape({1, 4, 24, 24}));
@@ -570,34 +541,6 @@ TEST_P(OVExecutableNetworkBaseTest, getOutputsFromSplitFunctionWithSeveralOutput
     EXPECT_NE(function->output(1).get_node(), function->output("tensor_split_1").get_node());
     EXPECT_EQ(function->output(1).get_node(), function->output("tensor_split_2").get_node());
     EXPECT_NE(function->output(0).get_node(), function->output("tensor_split_2").get_node());
-
-    ov::InferRequest request = execNet.create_infer_request();
-
-    ov::Tensor tensor1, tensor2;
-    EXPECT_NO_THROW(tensor1 = request.get_tensor(execNet.output(0)));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output(0)));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(execNet.output(0).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output(0).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_output_tensor(0));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor1 = request.get_tensor(execNet.output(1)));
-    try {
-        // To avoid case with remote tensors
-        tensor1.data();
-        EXPECT_FALSE(compareTensors(tensor1, tensor2));
-    } catch (const ov::Exception&) {
-    }
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output(1)));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(execNet.output(1).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_tensor(function->output(1).get_any_name()));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
-    EXPECT_NO_THROW(tensor2 = request.get_output_tensor(1));
-    EXPECT_TRUE(compareTensors(tensor1, tensor2));
 }
 
 // Load correct network to Plugin to get executable network
@@ -622,9 +565,10 @@ TEST_P(OVExecutableNetworkBaseTest, precisionsAsInOriginalFunction) {
 
 // Load correct network to Plugin to get executable network
 TEST_P(OVExecutableNetworkBaseTest, precisionsAsInOriginalIR) {
-    const std::string m_out_xml_path_1 = "precisionsAsInOriginalIR.xml";
-    const std::string m_out_bin_path_1 = "precisionsAsInOriginalIR.bin";
-    ov::pass::Serialize(m_out_xml_path_1, m_out_bin_path_1).run_on_function(function);
+    auto filePrefix = CommonTestUtils::generateTestFilePrefix();
+    const std::string m_out_xml_path_1 = filePrefix + "precisionsAsInOriginalIR.xml";
+    const std::string m_out_bin_path_1 = filePrefix + "precisionsAsInOriginalIR.bin";
+    ov::pass::Serialize(m_out_xml_path_1, m_out_bin_path_1).run_on_model(function);
 
     ov::CompiledModel execNet;
     EXPECT_NO_THROW(execNet = core->compile_model(m_out_xml_path_1, target_device, configuration));
@@ -704,6 +648,15 @@ TEST_P(OVExecutableNetworkBaseTest, loadIncorrectV11Model) {
         function->set_friendly_name("SimpleReLU");
     }
     EXPECT_NO_THROW(core->compile_model(function, target_device, configuration));
+}
+
+TEST_P(OVAutoExecutableNetworkTest, AutoNotImplementedSetConfigToExecNet) {
+    std::map<std::string, ov::Any> config;
+    for (const auto& confItem : configuration) {
+        config.emplace(confItem.first, confItem.second);
+    }
+    auto execNet = core->compile_model(function, target_device, config);
+    EXPECT_ANY_THROW(execNet.set_property(config));
 }
 
 }  // namespace behavior

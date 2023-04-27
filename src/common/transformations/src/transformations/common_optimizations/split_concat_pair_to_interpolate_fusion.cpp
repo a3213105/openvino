@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -206,7 +206,9 @@ ov::pass::SplitConcatPairToInterpolateFusion::SplitConcatPairToInterpolateFusion
         std::shared_ptr<Node> sizes_node;
 
         if (use_shape_for_elimination) {
+            OPENVINO_SUPPRESS_DEPRECATED_START
             sizes_node = get_constant_from_source(cast_mul_result_to_int);
+            OPENVINO_SUPPRESS_DEPRECATED_END
         } else {
             disable_constant_folding(shape_node);
         }

@@ -1,8 +1,6 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <cstddef>
 
@@ -26,7 +24,8 @@ static std::vector<T> generateVector(size_t sz) {
     return vec;
 }
 
-TEST(set_output_memory_gpu, basic) {
+template <typename T>
+void test_basic(bool is_caching_test) {
     auto& engine = get_test_engine();
 
     const int b = 3;
@@ -37,7 +36,7 @@ TEST(set_output_memory_gpu, basic) {
     auto input_data = engine.allocate_memory({ data_types::f32, format::bfyx, { b, f, x, y } });
     auto output_mem = engine.allocate_memory({ data_types::f32, format::bfyx, { b, f, x, y } });
 
-    const int inputSize = input_data->get_layout().count();
+    const auto inputSize = input_data->get_layout().count();
     auto inputVals = generateVector(inputSize);
     set_values(input_data, inputVals);
 
@@ -47,21 +46,25 @@ TEST(set_output_memory_gpu, basic) {
         reorder("reorder", input_info("Input"), input_data->get_layout())
     );
 
-    network network(engine, topology);
+    cldnn::network::ptr network = get_network(engine, topology, get_test_default_config(engine), get_test_stream_ptr(), is_caching_test);
 
-    network.set_input_data("Input", input_data);
-    network.set_output_memory("reorder", output_mem);
+    network->set_input_data("Input", input_data);
+    network->set_output_memory("reorder", output_mem);
 
-    auto outputs = network.execute();
+    auto outputs = network->execute();
 
     auto output = outputs.at("reorder").get_memory();
     ASSERT_TRUE(engine.is_the_same_buffer(*output_mem, *output));
 
-    cldnn::mem_lock<float> output_ptr(output, get_test_stream());
+    cldnn::mem_lock<T> output_ptr(output, get_test_stream());
 
     for (size_t i = 0; i < inputVals.size(); ++i) {
         ASSERT_TRUE(are_equal(inputVals[i], output_ptr[i])) << i;
     }
+}
+
+TEST(set_output_memory_gpu, basic) {
+    test_basic<float>(false);
 }
 
 TEST(set_output_memory_gpu, basic_const) {
@@ -77,7 +80,7 @@ TEST(set_output_memory_gpu, basic_const) {
     auto output_mem = engine.allocate_memory({ data_types::f32, format::bfyx, { b, f, x, y } });
     auto output_const_mem = engine.allocate_memory({ data_types::f32, format::bfyx, { b, f, x, y } });
 
-    const int inputSize = input_data->get_layout().count();
+    const int inputSize = static_cast<int>(input_data->get_layout().count());
     auto inputVals = generateVector(inputSize);
     auto constVals = generateVector(inputSize);
     set_values(input_data, inputVals);
@@ -91,7 +94,7 @@ TEST(set_output_memory_gpu, basic_const) {
             reorder("reorder_const", input_info("Const"), input_data->get_layout())
     );
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("Input", input_data);
     network.set_output_memory("reorder_dyn", output_mem);
@@ -126,7 +129,7 @@ TEST(set_output_memory_gpu, basic_mutable) {
     auto md = engine.allocate_memory({ data_types::f32, format::bfyx, { b, f, x, y } });
     auto output_mem = engine.allocate_memory({ data_types::f32, format::bfyx, { b, f, x, y } });
     auto output_mutable_mem = engine.allocate_memory({ data_types::f32, format::bfyx, { b, f, x, y } });
-    const int inputSize = input_data->get_layout().count();
+    const auto inputSize = input_data->get_layout().count();
     auto inputVals = generateVector(inputSize);
     auto mutableVals = generateVector(inputSize);
     set_values(input_data, inputVals);
@@ -140,7 +143,7 @@ TEST(set_output_memory_gpu, basic_mutable) {
             reorder("reorder_mutable", input_info("Mutable"), input_data->get_layout())
     );
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("Input", input_data);
     network.set_output_memory("reorder_dyn", output_mem);
@@ -193,7 +196,7 @@ TEST(set_output_memory_gpu, top_k1) {
     };
     set_values(input, input_vec);
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
     network.set_output_memory("reorder", output_mem);
@@ -239,7 +242,7 @@ TEST(set_output_memory_gpu, top_k2) {
     };
     set_values(input, input_vec);
 
-    network network(engine, topology);
+    network network(engine, topology, get_test_default_config(engine));
 
     network.set_input_data("input", input);
     network.set_output_memory("reorder", second_output_mem);
@@ -319,9 +322,9 @@ TEST(set_output_memory_gpu, basic_opt) {
     primitive_id outputID = "reorder3";
     topology.add(reorder(outputID, input_info("concat"), ol));
 
-    build_options bo;
-    bo.set_option(build_option::optimize_data(true));
-    network network(engine, topology, bo);
+    ExecutionConfig config = get_test_default_config(engine);
+    config.set_property(ov::intel_gpu::optimize_data(true));
+    network network(engine, topology, config);
 
     network.set_input_data("input1", input1);
     network.set_input_data("input2", input2);
@@ -371,7 +374,7 @@ TEST(set_output_memory_gpu, mutable_output_data) {
             /*b1f3*/4.f,  0.5f,  8.f,   8.2f
     };
     set_values(input, input_vec);
-    auto prog = program::build_program(engine, topology, build_options());
+    auto prog = program::build_program(engine, topology, get_test_default_config(engine));
     network network(prog, 0);
     network.set_input_data("Add_1396", input);
 
@@ -379,4 +382,8 @@ TEST(set_output_memory_gpu, mutable_output_data) {
     network.execute();
     network.execute();
     network.set_output_memory("pred/sink_port_0", final_output);
+}
+
+TEST(set_output_memory_gpu, basic_cached) {
+    test_basic<float>(true);
 }

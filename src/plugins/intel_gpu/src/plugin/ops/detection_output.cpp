@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -43,8 +43,8 @@ static void CreateDetectionOutputOp(Program& p, const std::shared_ptr<ngraph::op
     float eta                       = 1.0f;
     int keep_top_k                  = attrs.keep_top_k[0];
     bool variance_encoded_in_target = attrs.variance_encoded_in_target;
-    int input_width                 = attrs.input_width;
-    int input_height                = attrs.input_height;
+    int input_width                 = static_cast<int>(attrs.input_width);
+    int input_height                = static_cast<int>(attrs.input_height);
     bool normalized                 = attrs.normalized;
     std::string code_type           = attrs.code_type;
     bool clip_before_nms            = attrs.clip_before_nms;

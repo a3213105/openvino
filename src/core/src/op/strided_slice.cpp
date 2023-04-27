@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "bound_evaluate.hpp"
 #include "compare.hpp"
 #include "itt.hpp"
 #include "ngraph/attribute_visitor.hpp"
@@ -17,7 +18,6 @@
 #include "ngraph/slice_plan.hpp"
 #include "ngraph/type/element_type_traits.hpp"
 #include "ngraph/util.hpp"
-#include "ngraph/validation_util.hpp"
 #include "openvino/op/util/precision_sensitive_attribute.hpp"
 #include "strided_slice_shape_inference.hpp"
 
@@ -137,7 +137,9 @@ void op::v1::StridedSlice::validate_and_infer_types() {
     set_input_is_relevant_to_shape(2);
     set_input_is_relevant_to_shape(3);
 
+    OPENVINO_SUPPRESS_DEPRECATED_START
     const auto input_shapes = get_node_input_partial_shapes(*this);
+    OPENVINO_SUPPRESS_DEPRECATED_END
     auto output_shapes = std::vector<ov::PartialShape>(1, PartialShape::dynamic());
 
     shape_infer(this, input_shapes, output_shapes);
@@ -214,8 +216,10 @@ bool evaluate_strided_slice(const HostTensorPtr& in,
 bool op::v1::StridedSlice::evaluate(const HostTensorVector& output_values, const HostTensorVector& input_values) const {
     OV_OP_SCOPE(v1_StridedSlice_evaluate);
     // FIXME: 4th input is optional, but it is required by the following code
+    OPENVINO_SUPPRESS_DEPRECATED_START
     NGRAPH_CHECK(validate_host_tensor_vector(input_values, 4));
     NGRAPH_CHECK(validate_host_tensor_vector(output_values, 1));
+    OPENVINO_SUPPRESS_DEPRECATED_END
     return strided_slice::evaluate_strided_slice(input_values[0],
                                                  input_values[1],
                                                  input_values[2],
@@ -242,20 +246,18 @@ bool strided_slice_input_check(const ov::Node* node) {
 }
 }  // namespace
 
-bool op::v1::StridedSlice::evaluate_lower(const HostTensorVector& output_values) const {
-    if (!strided_slice_input_check(this))
-        return false;
-    return default_lower_bound_evaluator(this, output_values);
+bool op::v1::StridedSlice::evaluate_lower(ov::TensorVector& output_values) const {
+    return strided_slice_input_check(this) && default_lower_bound_evaluator(this, output_values);
 }
 
-bool op::v1::StridedSlice::evaluate_upper(const HostTensorVector& output_values) const {
-    if (!strided_slice_input_check(this))
-        return false;
-    return default_upper_bound_evaluator(this, output_values);
+bool op::v1::StridedSlice::evaluate_upper(ov::TensorVector& output_values) const {
+    return strided_slice_input_check(this) && default_upper_bound_evaluator(this, output_values);
 }
 
 bool op::v1::StridedSlice::evaluate_label(TensorLabelVector& output_labels) const {
     if (!strided_slice_input_check(this))
         return false;
+    OPENVINO_SUPPRESS_DEPRECATED_START
     return default_label_evaluator(this, output_labels);
+    OPENVINO_SUPPRESS_DEPRECATED_END
 }

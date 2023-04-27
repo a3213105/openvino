@@ -1,4 +1,4 @@
-# OpenVINO™ Deployment {#openvino_docs_deployment_guide_introduction}
+# Running and Deploying Inference {#openvino_docs_deployment_guide_introduction}
 
 @sphinxdirective
 
@@ -6,15 +6,12 @@
    :maxdepth: 1
    :hidden:
 
-   Deploy via OpenVINO Runtime <openvino_deployment_guide>
+   Run and Deploy Locally <openvino_deployment_guide>
    Deploy via Model Serving <ovms_what_is_openvino_model_server>
-
-@endsphinxdirective
 
 
 Once you have a model that meets both OpenVINO™ and your requirements, you can choose how to deploy it with your application.
 
-@sphinxdirective
 .. panels::
 
     :doc:`Deploy via OpenVINO Runtime <openvino_deployment_guide>` 
@@ -30,8 +27,7 @@ Once you have a model that meets both OpenVINO™ and your requirements, you can
     Deployment via OpenVINO Model Server allows the application to connect to the inference server set up remotely. 
     This way inference can use external resources instead of those available to the application itself. 
 
+
+Apart from the default deployment options, you may also :doc:`deploy your application for the TensorFlow framework with OpenVINO Integration <ovtf_integration>`
+
 @endsphinxdirective
-
-
-
-Apart from the default deployment options, you may also [deploy your application for the TensorFlow framework with OpenVINO Integration](./openvino_ecosystem_ovtf.md).

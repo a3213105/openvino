@@ -1,4 +1,4 @@
-// Copyright (C) 2018-2022 Intel Corporation
+// Copyright (C) 2018-2023 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 //
 
@@ -63,21 +63,21 @@ std::vector<Configs> MultiConfigs = {
 
 
 
-INSTANTIATE_TEST_SUITE_P(smoke_BehaviorTests, OVInferConsistencyTest,
+INSTANTIATE_TEST_SUITE_P(BehaviorTests, OVInferConsistencyTest,
     ::testing::Combine(
         ::testing::Values(10),// inferRequest num
         ::testing::Values(50),// infer counts
         ::testing::ValuesIn(configs)),
     OVInferConsistencyTest::getTestCaseName);
 
-INSTANTIATE_TEST_SUITE_P(smoke_Auto_BehaviorTests, OVInferConsistencyTest,
+INSTANTIATE_TEST_SUITE_P(Auto_BehaviorTests, OVInferConsistencyTest,
     ::testing::Combine(
         ::testing::Values(10),// inferRequest num
         ::testing::Values(50),// infer counts
         ::testing::ValuesIn(AutoConfigs)),
     OVInferConsistencyTest::getTestCaseName);
 
-INSTANTIATE_TEST_SUITE_P(smoke_Multi_BehaviorTests, OVInferConsistencyTest,
+INSTANTIATE_TEST_SUITE_P(Multi_BehaviorTests, OVInferConsistencyTest,
     ::testing::Combine(
         ::testing::Values(10),// inferRequest num
         ::testing::Values(50),// infer counts

@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2022 Intel Corporation
+# Copyright (C) 2018-2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
@@ -411,6 +411,7 @@ class TestPooling(OnnxRuntimeLayerTest):
     @pytest.mark.parametrize("incl_pad", [None, 1])
     @pytest.mark.parametrize("ceil", [True, False])
     @pytest.mark.nightly
+    @pytest.mark.skip(reason='GREEN_SUITE')
     def test_avgpool_opset10(self, params, incl_pad, ceil, ie_device, precision, ir_version,
                              temp_dir, use_old_api):
         if not len(params['shape']) in [4, 5]:

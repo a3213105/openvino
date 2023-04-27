@@ -1,5 +1,7 @@
-# Copyright (C) 2018-2022 Intel Corporation
+# Copyright (C) 2018-2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
+
+import unittest
 
 import numpy as np
 import openvino.runtime as ov
@@ -91,7 +93,6 @@ def create_tf_session(tmp_dir):
     import tensorflow as tf
     from tensorflow.python.eager.context import graph_mode
 
-
     with graph_mode():
         tf.compat.v1.reset_default_graph()
         sess = tf.compat.v1.Session()
@@ -128,7 +129,7 @@ def create_tf_module(tmp_dir):
 
     shape = PartialShape([1, 2, 3])
     param1 = ov.opset8.parameter(shape, dtype=np.float32)
-    param2 = ov.opset8.parameter(shape,  dtype=np.float32)
+    param2 = ov.opset8.parameter(shape, dtype=np.float32)
     add = ov.opset8.add(param1, param2)
     relu = ov.opset8.relu(add)
     sigm = ov.opset8.sigmoid(relu)
@@ -153,7 +154,7 @@ def create_tf_module_layout_list(tmp_dir):
 
     shape = PartialShape([1, 2, 3])
     param1 = ov.opset8.parameter(shape, dtype=np.float32)
-    param2 = ov.opset8.parameter(shape,  dtype=np.float32)
+    param2 = ov.opset8.parameter(shape, dtype=np.float32)
     add = ov.opset8.add(param1, param2)
     relu = ov.opset8.relu(add)
     sigm = ov.opset8.sigmoid(relu)
@@ -179,7 +180,7 @@ def create_tf_module_dynamic(tmp_dir):
 
     shape = PartialShape([-1, 3, 4])
     param1 = ov.opset8.parameter(shape, dtype=np.float32)
-    param2 = ov.opset8.parameter(shape,  dtype=np.float32)
+    param2 = ov.opset8.parameter(shape, dtype=np.float32)
     add = ov.opset8.add(param1, param2)
     relu = ov.opset8.relu(add)
     sigm = ov.opset8.sigmoid(relu)
@@ -190,6 +191,7 @@ def create_tf_module_dynamic(tmp_dir):
     net = Net()
     return net, model_ref, {'input_shape': [PartialShape([-1, Dimension(3, -1), Dimension(4)]),
                                             PartialShape([-1, Dimension(3), Dimension(4, -1)])]}
+
 
 def create_keras_layer(tmp_dir):
     import tensorflow as tf
@@ -213,6 +215,7 @@ def create_keras_layer(tmp_dir):
 
     net = LayerModel()
     return net, model_ref, {'input_shape': [PartialShape([1, 2, 3]), PartialShape([1, 2, 3])]}
+
 
 def create_keras_layer_dynamic(tmp_dir):
     import tensorflow as tf
@@ -268,21 +271,14 @@ def create_tf_checkpoint(tmp_dir):
 def create_tf_function(temp_dir):
     import tensorflow as tf
 
-    input_names = ["Input1", "Input2"]
-    input_shape = [1, 2, 3]
-
-    x1 = tf.keras.Input(shape=input_shape, name=input_names[0])
-    x2 = tf.keras.Input(shape=input_shape, name=input_names[1])
-    y = tf.nn.sigmoid(tf.nn.relu(x1 + x2))
-    keras_net = tf.keras.Model(inputs=[x1, x2], outputs=[y])
-
     @tf.function(
         input_signature=[tf.TensorSpec(shape=[1, 2, 3], dtype=tf.float32),
                          tf.TensorSpec(shape=[1, 2, 3], dtype=tf.float32)])
-    def f(x):
-        return keras_net(x)
+    def f(x1, x2):
+        y = tf.nn.sigmoid(tf.nn.relu(x1 + x2))
+        return y
 
-    shape = PartialShape([-1, 1, 2, 3])
+    shape = PartialShape([1, 2, 3])
     param1 = ov.opset8.parameter(shape, dtype=np.float32)
     param2 = ov.opset8.parameter(shape, dtype=np.float32)
     add = ov.opset8.add(param1, param2)
@@ -292,10 +288,38 @@ def create_tf_function(temp_dir):
     parameter_list = [param1, param2]
     model_ref = Model([sigm], parameter_list, "test")
 
-    return keras_net, model_ref, None
+    return f, model_ref, None
 
 
-def create_tf_saved_model(temp_dir):
+def create_tf_graph(temp_dir):
+    import tensorflow as tf
+
+    tf.compat.v1.reset_default_graph()
+
+    with tf.compat.v1.Session() as sess:
+        inp1 = tf.compat.v1.placeholder(tf.float32, [1, 2, 3], 'Input')
+        inp2 = tf.compat.v1.placeholder(tf.float32, [1, 2, 3], 'Input')
+        relu = tf.nn.relu(inp1 + inp2, name='Relu')
+
+        output = tf.nn.sigmoid(relu, name='Sigmoid')
+
+        tf.compat.v1.global_variables_initializer()
+        tf_net = sess.graph
+
+    shape = PartialShape([1, 2, 3])
+    param1 = ov.opset8.parameter(shape, dtype=np.float32)
+    param2 = ov.opset8.parameter(shape, dtype=np.float32)
+    add = ov.opset8.add(param1, param2)
+    relu = ov.opset8.relu(add)
+    sigm = ov.opset8.sigmoid(relu)
+
+    parameter_list = [param1, param2]
+    model_ref = Model([sigm], parameter_list, "test")
+
+    return tf_net, model_ref, None
+
+
+def create_tf_saved_model_dir(temp_dir):
     import tensorflow as tf
 
     input_names = ["Input1", "Input2"]
@@ -305,6 +329,8 @@ def create_tf_saved_model(temp_dir):
     x2 = tf.keras.Input(shape=input_shape, name=input_names[1])
     y = tf.nn.sigmoid(tf.nn.relu(x1 + x2))
     keras_net = tf.keras.Model(inputs=[x1, x2], outputs=[y])
+
+    tf.saved_model.save(keras_net, temp_dir + "/model")
 
     shape = PartialShape([-1, 1, 2, 3])
     param1 = ov.opset8.parameter(shape, name="Input1:0", dtype=np.float32)
@@ -316,10 +342,7 @@ def create_tf_saved_model(temp_dir):
     parameter_list = [param1, param2]
     model_ref = Model([sigm], parameter_list, "test")
 
-    tf.saved_model.save(keras_net, temp_dir + "/model")
-    saved_model = tf.saved_model.load(temp_dir + "/model")
-
-    return saved_model, model_ref, None
+    return temp_dir + "/model", model_ref
 
 
 class TestMoConvertTF(CommonMOConvertTest):
@@ -330,13 +353,12 @@ class TestMoConvertTF(CommonMOConvertTest):
         create_tf_function,
         create_tf_module,
         create_tf_checkpoint,
-        create_tf_saved_model,
         create_keras_layer_dynamic,
         create_tf_module_dynamic,
         create_tf_module_layout_list,
 
-
         # TF1
+        create_tf_graph,
         create_tf_graph_def,
         create_tf1_wrap_function,
         create_tf_session,
@@ -346,11 +368,52 @@ class TestMoConvertTF(CommonMOConvertTest):
     @pytest.mark.nightly
     @pytest.mark.precommit_tf_fe
     @pytest.mark.precommit
-    def test_mo_import_from_memory(self, create_model, ie_device, precision, ir_version,
-                                   temp_dir, use_new_frontend, use_old_api):
+    def test_mo_import_from_memory_legacy_fe(self, create_model, ie_device, precision, ir_version,
+                                             temp_dir):
         fw_model, graph_ref, mo_params = create_model(temp_dir)
 
-        test_params = {'input_model': fw_model}
+        test_params = {'input_model': fw_model, 'use_legacy_frontend': True}
         if mo_params is not None:
             test_params.update(mo_params)
         self._test_by_ref_graph(temp_dir, test_params, graph_ref, compare_tensor_names=False)
+
+    @pytest.mark.parametrize("create_model", test_data)
+    @pytest.mark.nightly
+    @pytest.mark.precommit_tf_fe
+    @pytest.mark.precommit
+    def test_mo_import_from_memory_tf_fe(self, create_model, ie_device, precision, ir_version,
+                                         temp_dir):
+        fw_model, graph_ref, mo_params = create_model(temp_dir)
+
+        test_params = {'input_model': fw_model, 'use_new_frontend': True}
+        if mo_params is not None:
+            test_params.update(mo_params)
+        self._test_by_ref_graph(temp_dir, test_params, graph_ref, compare_tensor_names=False)
+
+    @pytest.mark.nightly
+    @pytest.mark.precommit
+    def test_unnamed_saved_model_dir(self, ie_device, precision, ir_version, temp_dir):
+        saved_model_dir, graph_ref = create_tf_saved_model_dir(temp_dir)
+
+        test_params = {'input_model': saved_model_dir, 'use_new_frontend': True}
+        self._test_by_ref_graph(temp_dir, test_params, graph_ref, compare_tensor_names=False)
+
+        test_params = {'input_model': saved_model_dir, 'use_new_frontend': False}
+        self._test_by_ref_graph(temp_dir, test_params, graph_ref, compare_tensor_names=False)
+
+
+class TFConvertTest(unittest.TestCase):
+    @pytest.mark.nightly
+    @pytest.mark.precommit
+    def test_tf_function_no_signature(self):
+        import tensorflow as tf
+        from openvino.tools.mo import convert_model
+
+        @tf.function()
+        def function(x1, x2):
+            y = tf.nn.sigmoid(tf.nn.relu(x1 + x2))
+            return y
+
+        with self.assertRaisesRegex(AssertionError,
+                                    ".*'input_signature' needs to be set for model conversion.*"):
+            convert_model(function)

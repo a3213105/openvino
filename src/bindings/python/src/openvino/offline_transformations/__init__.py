@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2018-2022 Intel Corporation
+# Copyright (C) 2018-2023 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 # flake8: noqa
@@ -9,14 +9,13 @@ import warnings
 
 warnings.warn(
     message="The module is private and following namespace "
-    "`offline_transformations` will be removed in "
-    "the future, use `openvino.runtime.passes` instead!",
+    "`offline_transformations` will be removed in the future.",
     category=FutureWarning,
 )
 
-from openvino.utils import add_openvino_libs_to_path, deprecated
+from openvino.utils import _add_openvino_libs_to_search_path, deprecated
 
-add_openvino_libs_to_path()
+_add_openvino_libs_to_search_path()
 
 from openvino._pyopenvino import get_version
 from openvino._pyopenvino import serialize as _base_serialize
@@ -66,11 +65,6 @@ def apply_pruning_transformation(model):
 
 
 @deprecated(version="2023.1", message="The module is private and following namespace " "`offline_transformations` will be removed in " "the future.")
-def generate_mapping_file(model, path, extract_names):
-    _base.generate_mapping_file(model, path, extract_names)
-
-
-@deprecated(version="2023.1", message="The module is private and following namespace " "`offline_transformations` will be removed in " "the future.")
 def apply_make_stateful_transformation(model, param_res_names):
     _base.apply_make_stateful_transformation(model, param_res_names)
 
@@ -80,7 +74,11 @@ def compress_model_transformation(model):
     _base.compress_model_transformation(model)
 
 
-@deprecated(version="2023.1", message="The module is private and following namespace " "`offline_transformations` will be removed in " "the future.")
+@deprecated(version="2023.1", 
+            message="The module is private and following namespace " 
+            "`offline_transformations` will be removed in the future. " 
+            "This transformation will be enabled as a part of read_model method of ov::Core "
+            "and convert method of ov::Frontend classes.")
 def compress_quantize_weights_transformation(model):
     _base.compress_quantize_weights_transformation(model)
 

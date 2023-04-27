@@ -9,7 +9,7 @@ Instructions can be found in ["Building the OpenVINO™ Python API"](./build.md)
 General guide:
 * Snake case (also known as the *lower_case_with_underscores* style) is used across the codebase. That includes modules (`runtime`, `offline_transformations`), function names, and arguments/variables (`async_infer`, `wait`, `path_to_xml`).
 * Naming of classes is an exception to the above rule. The *CamelCase* style is used in this case, for example: `Core`, `InferRequest` or `AsyncInferQueue`.
-* If bindings (explained later in the [Pure pybind11 solution](#Pure pybind11 solution) section) are created to expose existing C++ code, make them similar to their C++ counterparts, regarding both names and placement, for example, C++'s `ov::InferRequest` and Python's `openvino.runtime.InferRequest`. If alignment is not possible, try to describe your class/function/module as well as possible, such as the pair of `openvino.runtime.ConstOutput/openvino.runtime.Output` which relates to `ov::Output<const ov::Node>/ov::Output<ov::Node>`. This naming points out the functional difference between both classes - one is an immutable and the other a mutable version.
+* If bindings (explained later in the [Pure pybind11 solution](#pure-pybind11-solution) section) are created to expose existing C++ code, make them similar to their C++ counterparts, regarding both names and placement, for example, C++'s `ov::InferRequest` and Python's `openvino.runtime.InferRequest`. If alignment is not possible, try to describe your class/function/module as well as possible, such as the pair of `openvino.runtime.ConstOutput/openvino.runtime.Output` which relates to `ov::Output<const ov::Node>/ov::Output<ov::Node>`. This naming points out the functional difference between both classes - one is an immutable and the other a mutable version.
 
 <!-- Pure Python solution describes Python based approach -->
 #### Pure Python solution
@@ -84,7 +84,7 @@ from openvino.helpers.custom_module import top1_index
 ```
 **Do not forget to include a license on the top of each file!** For demonstration purposes, it has been skipped in the snippets above.
 
-To see changes taking effect, rebuild the project (CMake's install step should be good enough <!-- TODO: Add link to BUILDING.md section -->) and run your solution:
+To see the changes take effect, [rebuild the project](../../../../docs/dev/build.md) and run your solution:
 ```python
 import openvino.helpers as ov_helpers
 
@@ -402,9 +402,8 @@ Great! Now the class has reached its destination, from C++, to Python, to Python
 
 This concludes developer work on OpenVINO™ Python API. Don't forget to recompile your builds and have a good time while writing your code!:)
 
-#### Testing out new code
-All of the code is now written. Let's move on to testing.
+### Testing the new code
 
-Please refer to the Test Guide available here:
+Coding is now finished. Let's move on to testing.
 
-    openvino/src/bindings/python/docs/test_examples.md
+To learn how to test your code, refer to the guide on [how to test OpenVINO™ Python API?](./test_examples.md#Running_OpenVINO™_Python_API_tests)
