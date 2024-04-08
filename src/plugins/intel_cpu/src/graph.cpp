@@ -1538,6 +1538,11 @@ void Graph::GetPerfData(std::vector<ov::ProfilingInfo>& perfMap) const {
             pc.status = avg_time > 0 ? ov::ProfilingInfo::Status::EXECUTED : ov::ProfilingInfo::Status::NOT_RUN;
             pc.exec_type = node->getPrimitiveDescriptorType();
             pc.node_type = node->typeStr;
+            if (node->getOriginalInputsNumber() > 0) {
+                pc.shape = node->getInputShapeAtPort(0).toString();
+            } else {
+                pc.shape = node->getOutputShapeAtPort(0).toString();
+            }
             perfMap.emplace_back(pc);
 
             for (auto& fusedNode : node->fusedWith) {

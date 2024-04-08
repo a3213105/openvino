@@ -62,6 +62,11 @@ struct ProfilingInfo {
      * @brief Node type.
      */
     std::string node_type;
+
+    /**
+     * @brief Node shape.
+     */
+    std::string shape;
 };
 
 }  // namespace ov

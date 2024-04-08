@@ -414,6 +414,13 @@ static UNUSED void printPerformanceCounts(std::vector<ov::ProfilingInfo> perform
                << it.real_time.count() / 1000.0 << " ";
         stream << "cpuTime (ms): " << std::setw(10) << std::left << std::fixed << std::setprecision(3)
                << it.cpu_time.count() / 1000.0 << " ";
+
+        std::string shape = it.shape;
+
+        shape.erase(shape.begin(), std::find_if(shape.begin(), shape.end(),
+                    std::not1(std::ptr_fun<int, int>(std::isspace))));
+
+        stream << std::setw(30) << std::left << "Shape: " +  shape << " ";
         stream << std::endl;
     }
     stream << std::setw(25) << std::left << "Total time: " << std::fixed << std::setprecision(3)
