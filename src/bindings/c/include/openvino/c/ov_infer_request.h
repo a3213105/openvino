@@ -47,6 +47,7 @@ typedef struct {
     const char* node_name;  //!< Name of a node.
     const char* exec_type;  //!< Execution type of a unit.
     const char* node_type;  //!< Node type.
+    const char* shape;      //!< Node shape.
 } ov_profiling_info_t;
 
 /**

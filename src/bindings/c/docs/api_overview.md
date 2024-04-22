@@ -129,6 +129,8 @@ typedef struct {
 
     const char* node_type;
 
+    const char* shape;
+
 } ov_profiling_info_t;
 ```
 

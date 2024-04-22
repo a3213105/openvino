@@ -333,6 +333,7 @@ ov_status_e ov_infer_request_get_profiling_info(const ov_infer_request_t* infer_
             _profiling_info_arr[i].node_name = str_to_char_array(infos[i].node_name);
             _profiling_info_arr[i].exec_type = str_to_char_array(infos[i].exec_type);
             _profiling_info_arr[i].node_type = str_to_char_array(infos[i].node_type);
+            _profiling_info_arr[i].shape = str_to_char_array(infos[i].shape);
         }
         profiling_infos->profiling_infos = _profiling_info_arr.release();
     }
