@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include <execinfo.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -96,6 +98,9 @@ public:
         std::vector<std::vector<int>> _stream_processor_ids;
         int _sub_streams = 0;
 
+        int _executor_id = -1;         //!< executor id to identify each executor and core map.
+        std::string _core_ids_str;
+
         /**
          * @brief Get and reserve cpu ids based on configuration and hardware information,
          *        streams_info_table must be present in the configuration
@@ -131,14 +136,18 @@ public:
                ov::hint::SchedulingCoreType thread_preferred_core_type = ov::hint::SchedulingCoreType::ANY_CORE,
                bool cpu_reservation = false,
                bool cpu_pinning = false,
-               std::vector<std::vector<int>> streams_info_table = {})
+               std::vector<std::vector<int>> streams_info_table = {},
+               int executor_id = -1,
+               std::string core_ids_str = "")
             : _name{name},
               _streams{streams},
               _threads_per_stream{threads_per_stream},
               _thread_preferred_core_type(thread_preferred_core_type),
               _cpu_reservation{cpu_reservation},
               _cpu_pinning{cpu_pinning},
-              _streams_info_table{streams_info_table} {
+              _streams_info_table{streams_info_table},
+              _executor_id(executor_id),
+              _core_ids_str{core_ids_str} {
             update_executor_config();
         }
 
@@ -166,6 +175,12 @@ public:
 
         std::string get_name() const {
             return _name;
+        }
+        int get_executor_id() const {
+            return _executor_id;
+        }
+        std::string get_core_ids() const {
+            return _core_ids_str;
         }
         int get_streams() const {
             return _streams;
@@ -197,8 +212,8 @@ public:
         int get_sub_streams() const {
             return _sub_streams;
         }
-        StreamsMode get_sub_stream_mode() const {
-            const auto proc_type_table = get_proc_type_table();
+        StreamsMode get_sub_stream_mode(int executor_id) const {
+            const auto proc_type_table = get_proc_type_table(executor_id);
             int sockets = proc_type_table.size() > 1 ? static_cast<int>(proc_type_table.size()) - 1 : 1;
             return _sub_streams > 0 ? StreamsMode::SUB_STREAMS_FOR_SOCKET
                                     : (_streams <= sockets ? StreamsMode::LATENCY : StreamsMode::THROUGHPUT);
@@ -214,6 +229,12 @@ public:
         }
 
         /**
+         * @brief Get and reserve cpu ids based on configuration and hardware information,
+         *        streams_info_table must be present in the configuration
+         */
+        void apply_cpu_core_ids();
+
+        /**
          * @brief Create appropriate multithreaded configuration
          *        filing unconfigured values from initial configuration using hardware properties
          * @param initial Inital configuration
@@ -221,7 +242,7 @@ public:
          */
         static Config make_default_multi_threaded(const Config& initial);
 
-        static int get_default_num_streams();  // no network specifics considered (only CPU's caps);
+        static int get_default_num_streams(int executor_id);  // no network specifics considered (only CPU's caps);
     };
 
     /**
