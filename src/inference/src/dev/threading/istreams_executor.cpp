@@ -33,10 +33,10 @@ void IStreamsExecutor::Config::set_property(const ov::AnyMap& property) {
         if (key == ov::num_streams) {
             auto streams = value.as<ov::streams::Num>();
             if (streams == ov::streams::NUMA) {
-                _streams = get_num_numa_nodes(_executor_id);
+                _streams = get_num_numa_nodes();
             } else if (streams == ov::streams::AUTO) {
                 // bare minimum of streams (that evenly divides available number of cores)
-                _streams = get_default_num_streams(_executor_id);
+                _streams = get_default_num_streams();
             } else if (streams.num >= 0) {
                 _streams = streams.num;
             } else {
@@ -46,8 +46,6 @@ void IStreamsExecutor::Config::set_property(const ov::AnyMap& property) {
                                "ov::streams::NUMA|ov::streams::AUTO, Got: ",
                                streams);
             }
-        } else if (key == ov::cpu_core_ids) {
-            _core_ids_str = value.as<std::string>();
         } else if (key == ov::inference_num_threads) {
             int val_i;
             try {
@@ -75,22 +73,12 @@ ov::Any IStreamsExecutor::Config::get_property(const std::string& key) const {
     if (key == ov::supported_properties) {
         std::vector<std::string> properties{
             ov::num_streams.name(),
-            ov::cpu_core_ids.name(),
             ov::inference_num_threads.name(),
             ov::internal::threads_per_stream.name(),
         };
         return properties;
     } else if (key == ov::num_streams) {
         return decltype(ov::num_streams)::value_type{_streams};
-    } else if (key == ov::cpu_core_ids) {
-        std::string strRes = "";
-        for (auto& it : _stream_processor_ids) {
-            for (auto j : it) {
-                strRes += std::to_string(j);
-                strRes += ",";
-            }
-        }
-        return {strRes};
     } else if (key == ov::inference_num_threads) {
         return decltype(ov::inference_num_threads)::value_type{_threads};
     } else if (key == ov::internal::threads_per_stream) {
@@ -101,9 +89,9 @@ ov::Any IStreamsExecutor::Config::get_property(const std::string& key) const {
     return {};
 }
 
-int IStreamsExecutor::Config::get_default_num_streams(int executor_id) {
+int IStreamsExecutor::Config::get_default_num_streams() {
     // bare minimum of streams (that evenly divides available number of core)
-    const auto proc_type_table = get_proc_type_table(executor_id);
+    const auto proc_type_table = get_proc_type_table();
     if (proc_type_table.empty()) {
         return 1;
     }
@@ -120,7 +108,7 @@ int IStreamsExecutor::Config::get_default_num_streams(int executor_id) {
 
 IStreamsExecutor::Config IStreamsExecutor::Config::make_default_multi_threaded(
     const IStreamsExecutor::Config& initial) {
-    const auto proc_type_table = get_proc_type_table(initial._executor_id);
+    const auto proc_type_table = get_proc_type_table();
     auto streamConfig = initial;
 
     if (proc_type_table.empty()) {
@@ -167,24 +155,8 @@ IStreamsExecutor::Config IStreamsExecutor::Config::make_default_multi_threaded(
     return streamConfig;
 }
 
-void IStreamsExecutor::Config::apply_cpu_core_ids() {
-    int status = _name.find("StreamsExecutor") != std::string::npos ? NOT_USED : CPU_USED;
-
-    if (_executor_id > -1 || status == CPU_USED) {
-        return;
-    }
-
-    std::vector<int> ids;
-    std::stringstream ss(_core_ids_str);
-    std::string item;
-    while (getline(ss, item, ',')) {
-        ids.push_back(std::stoi(item));
-    }
-    _executor_id = config_available_cpus(_executor_id, ids);
-}
-
 void IStreamsExecutor::Config::update_executor_config() {
-    const auto proc_type_table = get_proc_type_table(this->_executor_id);
+    const auto proc_type_table = get_proc_type_table();
     bool streams_info_available = false;
 
     if (proc_type_table.empty()) {
@@ -294,10 +266,7 @@ void IStreamsExecutor::Config::update_executor_config() {
     }
 
     if (_cpu_pinning) {
-        reserve_available_cpus(_executor_id,
-                               _streams_info_table,
-                               _stream_processor_ids,
-                               _cpu_reservation ? CPU_USED : NOT_USED);
+        reserve_available_cpus(_streams_info_table, _stream_processor_ids, _cpu_reservation ? CPU_USED : NOT_USED);
     }
 
     // Recaculate _streams, _threads and _threads_per_stream by _streams_info_table
@@ -333,7 +302,7 @@ void IStreamsExecutor::Config::update_executor_config() {
 }
 
 void IStreamsExecutor::Config::set_config_zero_stream() {
-    std::vector<std::vector<int>> proc_type_table = get_proc_type_table(_executor_id);
+    std::vector<std::vector<int>> proc_type_table = get_proc_type_table();
     int core_type = MAIN_CORE_PROC;
     int numa_id = 0;
     int socket_id = 0;

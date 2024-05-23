@@ -34,8 +34,7 @@ std::vector<std::vector<int>> get_streams_info_table(const int input_streams,
                                                      const int input_current_socket_id,
                                                      const std::string input_perf_hint,
                                                      const std::set<ov::hint::ModelDistributionPolicy> hint_model_distribution_policy,
-                                                     const std::vector<std::vector<int>>& proc_type_table,
-                                                     const int executor_id) {
+                                                     const std::vector<std::vector<int>>& proc_type_table) {
     std::vector<int> stream_info(CPU_STREAMS_TABLE_SIZE, INIT_VAL);
     std::vector<std::vector<int>> streams_info_table;
     std::vector<std::vector<int>> proc_socket_table;
@@ -193,7 +192,7 @@ std::vector<std::vector<int>> get_streams_info_table(const int input_streams,
         ((input_streams_changed == true) && (input_streams == 1))) {
         n_streams = 1;
         stream_info[NUMBER_OF_STREAMS] = n_streams;
-        current_socket_id = input_current_socket_id == -1 ? get_current_socket_id(executor_id) : input_current_socket_id;
+        current_socket_id = input_current_socket_id == -1 ? get_current_socket_id() : input_current_socket_id;
         if (input_threads > 0) {
             if (hint_model_distribution_policy.size() == 0) {
                 for (auto& row : proc_socket_table) {
@@ -209,8 +208,6 @@ std::vector<std::vector<int>> get_streams_info_table(const int input_streams,
                     (proc_type_table[0][MAIN_CORE_PROC] > 0)) {
                     stream_info[PROC_TYPE] = ALL_PROC;
                 }
-            } else {
-                current_socket_id = input_current_socket_id == -1 ? get_current_socket_id(executor_id) : input_current_socket_id;
             }
         } else if ((hint_model_distribution_policy.find(ov::hint::ModelDistributionPolicy::TENSOR_PARALLEL) !=
                     hint_model_distribution_policy.end()) ||
@@ -469,7 +466,7 @@ int get_model_prefer_threads(const int num_streams,
                              const std::vector<std::vector<int>> proc_type_table,
                              const std::shared_ptr<ov::Model>& model,
                              Config& config) {
-    const int sockets = get_num_sockets(config.streamExecutorConfig.get_executor_id());
+    const int sockets = get_num_sockets();
     auto model_prefer = 0;
     if (-1 == config.modelPreferThreads) {
         const auto isa = dnnl::get_effective_cpu_isa();
@@ -572,7 +569,7 @@ int get_model_prefer_threads(const int num_streams,
             // cores only cases except LLM.
             model_prefer = proc_type_table[0][MAIN_CORE_PROC] > (proc_type_table[0][EFFICIENT_CORE_PROC] /
                                                                  (int8_intensive ? int8_threshold : fp32_threshold))
-                               ? ((!llm_related && ov::get_number_of_blocked_cores(config.streamExecutorConfig.get_executor_id()))
+                               ? ((!llm_related && ov::get_number_of_blocked_cores())
                                       ? proc_type_table[0][MAIN_CORE_PROC] + proc_type_table[0][EFFICIENT_CORE_PROC]
                                       : proc_type_table[0][MAIN_CORE_PROC])
                                : proc_type_table[0][MAIN_CORE_PROC] + proc_type_table[0][EFFICIENT_CORE_PROC];
@@ -610,8 +607,7 @@ std::vector<std::vector<int>> generate_stream_info(const int streams,
                                                      input_current_socket_id,
                                                      ov::util::to_string(config.hintPerfMode),
                                                      config.modelDistributionPolicy,
-                                                     proc_type_table,
-                                                     config.streamExecutorConfig.get_executor_id());
+                                                     proc_type_table);
 
     auto cpu_pinning =
         get_cpu_pinning(config.enableCpuPinning, config.changedCpuPinning, proc_type_table, streams_info_table);
@@ -622,14 +618,13 @@ std::vector<std::vector<int>> generate_stream_info(const int streams,
                                                            ov::hint::SchedulingCoreType::ANY_CORE,
                                                            false,
                                                            cpu_pinning,
-                                                           streams_info_table,
-                                                           config.streamExecutorConfig.get_executor_id(),
-                                                           config.streamExecutorConfig.get_core_ids()};
+                                                           streams_info_table};
+
     return proc_type_table;
 }
 
 void get_num_streams(const int streams, const std::shared_ptr<ov::Model>& model, Config& config) {
-    std::vector<std::vector<int>> proc_type_table = get_proc_type_table(config.streamExecutorConfig.get_executor_id());
+    std::vector<std::vector<int>> proc_type_table = get_proc_type_table();
 
     generate_stream_info(streams, -1, model, config, proc_type_table);
 }
