@@ -93,6 +93,7 @@ realtime tracking,” in ICIP, 2016, pp. 3464–3468.
 
 .. |deepsort| image:: https://user-images.githubusercontent.com/91237924/221744683-0042eff8-2c41-43b8-b3ad-b5929bafb60b.png
 
+
 **Table of contents:**
 
 
@@ -115,22 +116,24 @@ realtime tracking,” in ICIP, 2016, pp. 3464–3468.
    -  `Initialize tracker <#initialize-tracker>`__
    -  `Run Live Person Tracking <#run-live-person-tracking>`__
 
+Installation Instructions
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This is a self-contained example that relies solely on its own code.
+
+We recommend running the notebook in a virtual environment. You only
+need a Jupyter server to start. For details, please refer to
+`Installation
+Guide <https://github.com/openvinotoolkit/openvino_notebooks/blob/latest/README.md#-installation-guide>`__.
+
 .. code:: ipython3
 
-    import platform
-
     %pip install -q "openvino-dev>=2024.0.0"
-    %pip install -q opencv-python requests scipy tqdm
-
-    if platform.system() != "Windows":
-        %pip install -q "matplotlib>=3.4"
-    else:
-        %pip install -q "matplotlib>=3.4,<3.7"
+    %pip install -q opencv-python requests scipy tqdm "matplotlib>=3.4"
 
 
 .. parsed-literal::
 
-    Note: you may need to restart the kernel to use updated packages.
     Note: you may need to restart the kernel to use updated packages.
     Note: you may need to restart the kernel to use updated packages.
 
@@ -197,18 +200,18 @@ Representation (OpenVINO IR).
    and post-processing.
 
 In this case, `person detection
-model <https://docs.openvino.ai/2024/omz_models_model_person_detection_0202.html>`__
+model <https://github.com/openvinotoolkit/open_model_zoo/blob/master/models/intel/person-detection-0202/README.md>`__
 is deployed to detect the person in each frame of the video, and
 `reidentification
-model <https://docs.openvino.ai/2024/omz_models_model_person_reidentification_retail_0287.html>`__
+model <https://github.com/openvinotoolkit/open_model_zoo/blob/master/models/intel/person-reidentification-retail-0287/README.md>`__
 is used to output embedding vector to match a pair of images of a person
 by the cosine distance.
 
 If you want to download another model (``person-detection-xxx`` from
 `Object Detection Models
-list <https://docs.openvino.ai/2024/omz_models_group_intel.html#object-detection-models>`__,
+list <https://github.com/openvinotoolkit/open_model_zoo/blob/master/models/intel/index.md#object-detection-models>`__,
 ``person-reidentification-retail-xxx`` from `Reidentification Models
-list <https://docs.openvino.ai/2024/omz_models_group_intel.html#reidentification-models>`__),
+list <https://github.com/openvinotoolkit/open_model_zoo/blob/master/models/intel/index.md#reidentification-models>`__),
 replace the name of the model in the code below.
 
 .. code:: ipython3
@@ -333,14 +336,7 @@ select device from dropdown list for running inference using OpenVINO
 
 .. code:: ipython3
 
-    import ipywidgets as widgets
-
-    device = widgets.Dropdown(
-        options=core.available_devices + ["AUTO"],
-        value="AUTO",
-        description="Device:",
-        disabled=False,
-    )
+    device = utils.device_widget()
 
     device
 
@@ -368,7 +364,7 @@ Data Processing includes data preprocess and postprocess functions.
 
 - Data preprocess function is used to change the layout and shape of input
   data, according to requirement of the network input format.
-- Data postprocess function is used to extract the useful information from
+- Datapostprocess function is used to extract the useful information from
   network’s original output and visualize it.
 
 .. code:: ipython3

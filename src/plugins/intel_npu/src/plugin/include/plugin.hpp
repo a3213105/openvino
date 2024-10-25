@@ -9,11 +9,11 @@
 #include <string>
 
 #include "backends.hpp"
-#include "intel_npu/al/config/config.hpp"
-#include "intel_npu/al/icompiler.hpp"
+#include "intel_npu/common/npu.hpp"
+#include "intel_npu/config/config.hpp"
+#include "intel_npu/icompiler.hpp"
 #include "intel_npu/utils/logger/logger.hpp"
 #include "metrics.hpp"
-#include "npu.hpp"
 #include "openvino/runtime/iplugin.hpp"
 #include "openvino/runtime/so_ptr.hpp"
 
@@ -61,7 +61,7 @@ private:
     std::map<std::string, std::string> _config;
     std::shared_ptr<OptionsDesc> _options;
     Config _globalConfig;
-    Logger _logger;
+    mutable Logger _logger;
     std::unique_ptr<Metrics> _metrics;
 
     // properties map: {name -> [supported, mutable, eval function]}

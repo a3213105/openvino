@@ -7,9 +7,9 @@
 #include <ze_api.h>
 #include <ze_graph_ext.h>
 
-#include "intel_npu/al/icompiled_model.hpp"
+#include "intel_npu/common/icompiled_model.hpp"
+#include "intel_npu/common/npu.hpp"
 #include "intel_npu/utils/logger/logger.hpp"
-#include "npu.hpp"
 #include "openvino/runtime/intel_npu/remote_properties.hpp"
 #include "zero_init.hpp"
 #include "zero_types.hpp"
@@ -26,6 +26,7 @@ public:
     std::string getName() const override;
     std::string getFullDeviceName() const override;
     Uuid getUuid() const override;
+    ov::device::LUID getLUID() const override;
     uint32_t getSubDevId() const override;
     uint32_t getMaxNumSlices() const override;
     uint64_t getAllocMemSize() const override;
@@ -37,6 +38,9 @@ public:
     std::shared_ptr<SyncInferRequest> createInferRequest(const std::shared_ptr<const ICompiledModel>& compiledModel,
                                                          const std::shared_ptr<IExecutor>& executor,
                                                          const Config& config) override;
+    void updateInfo(const Config& config) override {
+        log.setLevel(config.get<LOG_LEVEL>());
+    }
 
     ov::SoPtr<ov::IRemoteTensor> createRemoteTensor(
         std::shared_ptr<ov::IRemoteContext> context,
@@ -58,14 +62,17 @@ public:
 private:
     const std::shared_ptr<ZeroInitStructsHolder> _initStructs;
 
-    ze_graph_dditable_ext_curr_t* _graph_ddi_table_ext = nullptr;
+    ze_graph_dditable_ext_curr_t& _graph_ddi_table_ext;
 
     ze_device_properties_t device_properties = {};
 
     ze_pci_ext_properties_t pci_properties = {};
 
+    ze_device_luid_ext_properties_t device_luid = {};
+
     std::map<ov::element::Type, float> device_gops = {{ov::element::f32, 0.f},
                                                       {ov::element::f16, 0.f},
+                                                      {ov::element::bf16, 0.f},
                                                       {ov::element::u8, 0.f},
                                                       {ov::element::i8, 0.f}};
 

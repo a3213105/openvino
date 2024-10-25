@@ -6,6 +6,7 @@
 
 #include "device.hpp"
 #include "event.hpp"
+#include "kernel.hpp"
 #include "memory_caps.hpp"
 #include "memory_pool.hpp"
 #include "layout.hpp"
@@ -94,7 +95,7 @@ public:
     bool supports_allocation(allocation_type type) const;
 
     /// Returns device structure which represents stores device capabilities
-    device_info get_device_info() const;
+    const device_info& get_device_info() const;
 
     /// Returns device object associated with the engine
     const device::ptr get_device() const;
@@ -148,6 +149,10 @@ public:
     /// Returns onednn engine object which shares device and context with current engine
     virtual dnnl::engine& get_onednn_engine() const = 0;
 #endif
+
+    /// This method is intended to create kernel handle for current engine from handle from arbitrary engine
+    /// For instance, source kernel can be compiled using ocl engine, and then we can build L0 kernel object based on that
+    virtual kernel::ptr prepare_kernel(const kernel::ptr kernel) const = 0;
 
     /// Factory method which creates engine object with impl configured by @p engine_type
     /// @param engine_type requested engine type

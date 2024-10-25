@@ -7,8 +7,8 @@
 #include <fstream>
 #include <memory>
 
-#include "device_helpers.hpp"
-#include "intel_npu/al/config/common.hpp"
+#include "intel_npu/common/device_helpers.hpp"
+#include "intel_npu/config/common.hpp"
 
 #if defined(ENABLE_ZEROAPI_BACKEND)
 #    include "zero_backend.hpp"
@@ -109,9 +109,9 @@ NPUBackends::NPUBackends(const std::vector<AvailableBackends>& backendRegistry, 
             }
 #endif
         } catch (const std::exception& ex) {
-            _logger.error("Got an error during backend '%s' loading : %s", backendName.c_str(), ex.what());
+            _logger.warning("Got an error during backend '%s' loading : %s", backendName.c_str(), ex.what());
         } catch (...) {
-            _logger.error("Got an unknown error during backend '%s' loading", backendName.c_str());
+            _logger.warning("Got an unknown error during backend '%s' loading", backendName.c_str());
         }
     }
 
@@ -127,8 +127,13 @@ NPUBackends::NPUBackends(const std::vector<AvailableBackends>& backendRegistry, 
     if (_backend != nullptr) {
         _logger.info("Use '%s' backend for inference", _backend->getName().c_str());
     } else {
-        _logger.error("Cannot find backend for inference. Make sure the device is available.");
+        _logger.warning("None of the backends were initialized successfully."
+                        "Only offline compilation can be done!");
     }
+}
+
+ov::SoPtr<IEngineBackend> NPUBackends::getIEngineBackend() {
+    return _backend;
 }
 
 std::string NPUBackends::getBackendName() const {
@@ -147,9 +152,9 @@ uint32_t NPUBackends::getDriverVersion() const {
     OPENVINO_THROW("No available backend");
 }
 
-uint32_t NPUBackends::getDriverExtVersion() const {
+uint32_t NPUBackends::getGraphExtVersion() const {
     if (_backend != nullptr) {
-        return _backend->getDriverExtVersion();
+        return _backend->getGraphExtVersion();
     }
 
     OPENVINO_THROW("No available backend");
@@ -163,9 +168,17 @@ bool NPUBackends::isBatchingSupported() const {
     return false;
 }
 
-bool NPUBackends::isWorkloadTypeSupported() const {
+bool NPUBackends::isCommandQueueExtSupported() const {
     if (_backend != nullptr) {
-        return _backend->isWorkloadTypeSupported();
+        return _backend->isCommandQueueExtSupported();
+    }
+
+    return false;
+}
+
+bool NPUBackends::isLUIDExtSupported() const {
+    if (_backend != nullptr) {
+        return _backend->isLUIDExtSupported();
     }
 
     return false;
@@ -217,6 +230,9 @@ void* NPUBackends::getContext() const {
 // TODO config should be also specified to backends, to allow use logging in devices and all levels below
 void NPUBackends::setup(const Config& config) {
     _logger.setLevel(config.get<LOG_LEVEL>());
+    if (_backend != nullptr) {
+        _backend->updateInfo(config);
+    }
 }
 
 std::string NPUBackends::getCompilationPlatform(const std::string_view platform, const std::string& deviceId) const {

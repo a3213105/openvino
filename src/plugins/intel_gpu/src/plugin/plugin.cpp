@@ -145,7 +145,11 @@ Plugin::Plugin() {
     register_primitives();
 
     // Set OCL runtime which should be always available
+#ifdef OV_GPU_WITH_SYCL
+    cldnn::device_query device_query(cldnn::engine_types::sycl, cldnn::runtime_types::ocl);
+#else
     cldnn::device_query device_query(cldnn::engine_types::ocl, cldnn::runtime_types::ocl);
+#endif
     m_device_map = device_query.get_available_devices();
 
     // Set default configs for each device
@@ -304,10 +308,13 @@ std::shared_ptr<ov::ICompiledModel> Plugin::import_model(std::istream& model,
     config.set_user_property(_orig_config);
     config.apply_user_properties(context_impl->get_engine().get_device_info());
 
-    if (config.get_property(ov::cache_mode) == ov::CacheMode::OPTIMIZE_SIZE)
-        return nullptr;
-
     cldnn::BinaryInputBuffer ib(model, context_impl->get_engine());
+
+    if (config.get_property(ov::cache_mode) == ov::CacheMode::OPTIMIZE_SIZE &&
+        config.get_property(ov::weights_path).empty()) {
+        return nullptr;
+    }
+
     return std::make_shared<CompiledModel>(ib, shared_from_this(), context_impl, config, loaded_from_cache);
 }
 
@@ -506,11 +513,13 @@ ov::Any Plugin::get_metric(const std::string& name, const ov::AnyMap& options) c
 }
 
 std::vector<ov::PropertyName> Plugin::get_caching_properties() const {
-    static const std::vector<ov::PropertyName> caching_properties =  {
+    static const std::vector<ov::PropertyName> caching_properties = {
         ov::PropertyName{ov::device::architecture.name(), PropertyMutability::RO},
         ov::PropertyName{ov::intel_gpu::execution_units_count.name(), PropertyMutability::RO},
         ov::PropertyName{ov::hint::inference_precision.name(), PropertyMutability::RW},
         ov::PropertyName{ov::hint::execution_mode.name(), PropertyMutability::RW},
+        ov::PropertyName{ov::hint::performance_mode.name(), PropertyMutability::RW},
+        ov::PropertyName{ov::hint::dynamic_quantization_group_size.name(), PropertyMutability::RW},
     };
 
     return caching_properties;
@@ -569,7 +578,8 @@ std::vector<ov::PropertyName> Plugin::get_supported_internal_properties() const 
             ov::PropertyName{ov::internal::exclusive_async_requests.name(), ov::PropertyMutability::RW},
             ov::PropertyName{ov::internal::compiled_model_runtime_properties.name(), ov::PropertyMutability::RO},
             ov::PropertyName{ov::internal::compiled_model_runtime_properties_supported.name(), ov::PropertyMutability::RO},
-            ov::PropertyName{ov::internal::query_model_ratio.name(), PropertyMutability::RW}};
+            ov::PropertyName{ov::internal::query_model_ratio.name(), PropertyMutability::RW},
+            ov::PropertyName{ov::internal::caching_with_mmap.name(), PropertyMutability::RO}};
     return supported_internal_properties;
 }
 

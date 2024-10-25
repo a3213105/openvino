@@ -28,6 +28,7 @@ minimal steps (from 2 to 4) on any pre-trained LDMs (e.g. Stable
 Diffusion). To read more about LCM please refer to
 https://latent-consistency-models.github.io/
 
+
 **Table of contents:**
 
 
@@ -36,6 +37,16 @@ https://latent-consistency-models.github.io/
    CPU <#using-full-precision-model-in-cpu-with-latentconsistencymodelpipeline>`__
 -  `Running inference using Optimum Intel
    OVLatentConsistencyModelPipeline <#running-inference-using-optimum-intel-ovlatentconsistencymodelpipeline>`__
+
+Installation Instructions
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This is a self-contained example that relies solely on its own code.
+
+We recommend running the notebook in a virtual environment. You only
+need a Jupyter server to start. For details, please refer to
+`Installation
+Guide <https://github.com/openvinotoolkit/openvino_notebooks/blob/latest/README.md#-installation-guide>`__.
 
 .. |image0| image:: https://github.com/openvinotoolkit/openvino_notebooks/assets/10940214/1858dae4-72fd-401e-b055-66d503d82446
 
@@ -49,7 +60,7 @@ Install required packages
 .. code:: ipython3
 
     %pip install -q "openvino>=2023.3.0"
-    %pip install -q "onnx>=1.11.0"
+    %pip install -q "onnx>=1.11.0,<1.16.2"
     %pip install -q "optimum-intel[diffusers]@git+https://github.com/huggingface/optimum-intel.git" "ipywidgets" "torch>=2.1" "transformers>=4.33.0" --extra-index-url https://download.pytorch.org/whl/cpu
 
 
@@ -63,7 +74,7 @@ Install required packages
 .. code:: ipython3
 
     import warnings
-
+    
     warnings.filterwarnings("ignore")
 
 Showing Info Available Devices
@@ -88,12 +99,14 @@ this
 .. code:: ipython3
 
     import openvino as ov
-
+    import openvino.properties as props
+    
+    
     core = ov.Core()
     devices = core.available_devices
-
+    
     for device in devices:
-        device_name = core.get_property(device, "FULL_DEVICE_NAME")
+        device_name = core.get_property(device, props.device.full_name)
         print(f"{device}: {device_name}")
 
 
@@ -115,16 +128,16 @@ https://huggingface.co/docs/diffusers/en/api/pipelines/latent_consistency_models
 
     from diffusers import LatentConsistencyModelPipeline
     import gc
-
+    
     pipeline = LatentConsistencyModelPipeline.from_pretrained("SimianLuo/LCM_Dreamshaper_v7")
 
 
 .. parsed-literal::
 
-    2024-07-13 01:00:03.964344: I tensorflow/core/util/port.cc:110] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
-    2024-07-13 01:00:04.000289: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+    2024-10-23 01:44:02.155955: I tensorflow/core/util/port.cc:110] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+    2024-10-23 01:44:02.191160: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
     To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
-    2024-07-13 01:00:04.671482: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+    2024-10-23 01:44:02.863862: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
 
 
 
@@ -136,7 +149,7 @@ https://huggingface.co/docs/diffusers/en/api/pipelines/latent_consistency_models
 .. code:: ipython3
 
     prompt = "A cute squirrel in the forest, portrait, 8k"
-
+    
     image = pipeline(prompt=prompt, num_inference_steps=4, guidance_scale=8.0, height=512, width=512).images[0]
     image.save("image_standard_pipeline.png")
     image
@@ -164,17 +177,17 @@ Select inference device for text-to-image generation
 
 .. code:: ipython3
 
-    import ipywidgets as widgets
-
-    core = ov.Core()
-
-    device = widgets.Dropdown(
-        options=core.available_devices + ["AUTO"],
-        value="CPU",
-        description="Device:",
-        disabled=False,
+    import requests
+    
+    r = requests.get(
+        url="https://raw.githubusercontent.com/openvinotoolkit/openvino_notebooks/latest/utils/notebook_utils.py",
     )
-
+    open("notebook_utils.py", "w").write(r.text)
+    
+    from notebook_utils import device_widget
+    
+    device = device_widget()
+    
     device
 
 
@@ -182,7 +195,7 @@ Select inference device for text-to-image generation
 
 .. parsed-literal::
 
-    Dropdown(description='Device:', options=('CPU', 'AUTO'), value='CPU')
+    Dropdown(description='Device:', index=1, options=('CPU', 'AUTO'), value='AUTO')
 
 
 
@@ -206,20 +219,19 @@ and there is no need to do it manually
 
     from optimum.intel.openvino import OVLatentConsistencyModelPipeline
     from pathlib import Path
-
+    
     if not Path("./openvino_ir").exists():
         ov_pipeline = OVLatentConsistencyModelPipeline.from_pretrained("SimianLuo/LCM_Dreamshaper_v7", height=512, width=512, export=True, compile=False)
         ov_pipeline.save_pretrained("./openvino_ir")
     else:
         ov_pipeline = OVLatentConsistencyModelPipeline.from_pretrained("./openvino_ir", export=False, compile=False)
-
+    
     ov_pipeline.reshape(batch_size=1, height=512, width=512, num_images_per_prompt=1)
 
 
 .. parsed-literal::
 
-    Framework not specified. Using pt to export the model.
-    Keyword arguments {'subfolder': '', 'token': None, 'trust_remote_code': False} are not expected by StableDiffusionPipeline and will be ignored.
+    Keyword arguments {'subfolder': '', 'trust_remote_code': False} are not expected by LatentConsistencyModelPipeline and will be ignored.
 
 
 
@@ -230,20 +242,13 @@ and there is no need to do it manually
 
 .. parsed-literal::
 
-    Using framework PyTorch: 2.3.1+cpu
-
-
-.. parsed-literal::
-
     WARNING:tensorflow:Please fix your imports. Module tensorflow.python.training.tracking.base has been moved to tensorflow.python.trackable.base. The old module will be deleted in version 2.11.
 
 
 .. parsed-literal::
 
     [ WARNING ]  Please fix your imports. Module %s has been moved to %s. The old module will be deleted in version %s.
-    Using framework PyTorch: 2.3.1+cpu
-    Using framework PyTorch: 2.3.1+cpu
-    Using framework PyTorch: 2.3.1+cpu
+    You have disabled the safety checker for <class 'optimum.intel.openvino.modeling_diffusion.OVLatentConsistencyModelPipeline'> by passing `safety_checker=None`. Ensure that you abide to the conditions of the Stable Diffusion license and do not expose unfiltered results in services or applications open to the public. Both the diffusers team and Hugging Face strongly recommend to keep the safety filter enabled in all public facing circumstances, disabling it only for use-cases that involve analyzing network behavior or auditing its results. For more information, please have a look at https://github.com/huggingface/diffusers/pull/254 .
 
 
 
@@ -252,43 +257,40 @@ and there is no need to do it manually
 
     OVLatentConsistencyModelPipeline {
       "_class_name": "OVLatentConsistencyModelPipeline",
-      "_diffusers_version": "0.24.0",
+      "_diffusers_version": "0.31.0",
+      "_name_or_path": "/tmp/tmpz3tx8cvr",
       "feature_extractor": [
         "transformers",
         "CLIPImageProcessor"
       ],
+      "image_encoder": [
+        null,
+        null
+      ],
       "requires_safety_checker": true,
       "safety_checker": [
-        "stable_diffusion",
-        "StableDiffusionSafetyChecker"
+        null,
+        null
       ],
       "scheduler": [
         "diffusers",
         "LCMScheduler"
       ],
       "text_encoder": [
-        "optimum",
+        "optimum.intel.openvino.modeling_diffusion",
         "OVModelTextEncoder"
-      ],
-      "text_encoder_2": [
-        null,
-        null
       ],
       "tokenizer": [
         "transformers",
         "CLIPTokenizer"
       ],
       "unet": [
-        "optimum",
+        "optimum.intel.openvino.modeling_diffusion",
         "OVModelUnet"
       ],
-      "vae_decoder": [
-        "optimum",
-        "OVModelVaeDecoder"
-      ],
-      "vae_encoder": [
-        "optimum",
-        "OVModelVaeEncoder"
+      "vae": [
+        "optimum.intel.openvino.modeling_diffusion",
+        "OVModelVae"
       ]
     }
 
@@ -299,19 +301,10 @@ and there is no need to do it manually
     ov_pipeline.to(device.value)
     ov_pipeline.compile()
 
-
-.. parsed-literal::
-
-    Compiling the vae_decoder to CPU ...
-    Compiling the unet to CPU ...
-    Compiling the text_encoder to CPU ...
-    Compiling the vae_encoder to CPU ...
-
-
 .. code:: ipython3
 
     prompt = "A cute squirrel in the forest, portrait, 8k"
-
+    
     image_ov = ov_pipeline(prompt=prompt, num_inference_steps=4, guidance_scale=8.0, height=512, width=512).images[0]
     image_ov.save("image_opt.png")
     image_ov
