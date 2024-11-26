@@ -23,10 +23,6 @@ using ov::pass::pattern::op::Or;
 UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
     using namespace ov::pass::pattern;
 
-    auto not_reshape = [](const ov::Output<ov::Node>& output) -> bool {
-        return std::dynamic_pointer_cast<ov::op::v1::Reshape>(output.get_node_shared_ptr()) == nullptr;
-    };
-
     auto unsqueeze_predicate = [](const ov::Output<ov::Node>& output) -> bool {
         return rank_equals(5)(output) && consumers_count(1);
     };
@@ -42,7 +38,7 @@ UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
         return rank_equals(4)(output) && consumers_count(1);
     };
 
-    auto input_a_m = any_input(not_reshape);
+    auto input_a_m = any_input();
     auto input_attn_mask = any_input();
     auto input_scale = any_input();
     auto input_b_m = wrap_type<ov::intel_gpu::op::KVCache>({any_input(), any_input()});
@@ -97,27 +93,25 @@ UnsqueezeBroadcastReshapeSDPAFusion::UnsqueezeBroadcastReshapeSDPAFusion() {
             return false;
         }
 
-        auto input_a = pattern_map.at(input_a_m).get_node_shared_ptr();
-        auto input_b = pattern_map.at(input_b_m).get_node_shared_ptr();
-        auto input_c = pattern_map.at(input_c_m).get_node_shared_ptr();
+        OutputVector data_inputs;
+        data_inputs.push_back(pattern_map.at(input_a_m).get_node_shared_ptr()); // Q
+        data_inputs.push_back(pattern_map.at(input_b_m).get_node_shared_ptr()); // K
+        data_inputs.push_back(pattern_map.at(input_c_m).get_node_shared_ptr()); // V
 
         auto sdpa = std::dynamic_pointer_cast<op::SDPA>(m.get_match_root());
+        if (pattern_map.find(sdpa_with_attn_mask_m) != pattern_map.end()) {
+            data_inputs.push_back(sdpa->get_input_source_output(3)); // attn_mask
+        } else if (pattern_map.find(sdpa_with_attn_mask_and_scale_m) != pattern_map.end()) {
+            data_inputs.push_back(sdpa->get_input_source_output(3)); // attn_mask
+            data_inputs.push_back(sdpa->get_input_source_output(4)); // scale
+        }
+
         auto order_a = sdpa->get_input0_transpose_order();
         auto order_b = sdpa->get_input1_transpose_order();
         auto order_c = sdpa->get_input2_transpose_order();
         auto order_d = sdpa->get_output_transpose_order();
 
-        std::shared_ptr<op::SDPA> sdpa_new;
-        if (pattern_map.find(sdpa_without_attn_mask_m) != pattern_map.end()) {
-            sdpa_new = std::make_shared<op::SDPA>(input_a, input_b, input_c, order_a, order_b, order_c, order_d, sdpa->get_causal());
-        } else if (pattern_map.find(sdpa_with_attn_mask_m) != pattern_map.end()) {
-            auto attn_mask = sdpa->get_input_source_output(3);
-            sdpa_new = std::make_shared<op::SDPA>(input_a, input_b, input_c, attn_mask, order_a, order_b, order_c, order_d, sdpa->get_causal());
-        } else if (pattern_map.find(sdpa_with_attn_mask_and_scale_m) != pattern_map.end()) {
-            auto attn_mask = sdpa->get_input_source_output(3);
-            auto scale = sdpa->get_input_source_output(4);
-            sdpa_new = std::make_shared<op::SDPA>(input_a, input_b, input_c, attn_mask, scale, order_a, order_b, order_c, order_d, sdpa->get_causal());
-        }
+        auto sdpa_new = std::make_shared<op::SDPA>(data_inputs, sdpa->get_causal(), order_a, order_b, order_c, order_d);
 
         sdpa_new->set_friendly_name(sdpa->get_friendly_name());
         ov::copy_runtime_info(m.get_matched_nodes(), sdpa_new);

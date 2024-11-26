@@ -1,4 +1,5 @@
-FROM openvinogithubactions.azurecr.io/dockerhub/ubuntu:20.04
+ARG REGISTRY="docker.io"
+FROM ${REGISTRY}/library/ubuntu:20.04
 
 USER root
 
@@ -22,6 +23,8 @@ RUN apt-get update && \
         ca-certificates \
         gpg-agent \
         tzdata \
+        # parallel gzip
+        pigz \
         # Python
         python3.11-dev \
         python3.11-venv \
@@ -48,3 +51,4 @@ RUN python3.11 -m venv venv
 ENV PATH="/venv/bin:$PATH"
 
 ENV PIP_CACHE_DIR=/mount/caches/pip/linux/${PIP_VERSION}
+ENV PIP_INSTALL_PATH=/venv/lib/python3.11/site-packages

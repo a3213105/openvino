@@ -20,7 +20,7 @@ namespace pass {
  * @brief Base class for transformations on linear IR
  * @ingroup snippets
  */
-class PassBase {
+class PassBase : public std::enable_shared_from_this<PassBase> {
 public:
     PassBase() = default;
     virtual ~PassBase() = default;
@@ -65,6 +65,21 @@ public:
      * @return status of the pass
      */
     virtual bool run(lowered::LinearIR& linear_ir) = 0;
+};
+
+/**
+ * @interface ConstPass
+ * @brief Base class for LIR passes which are performed on a full LIR body but doesn't change it
+ * @ingroup snippets
+ */
+class ConstPass : public PassBase {
+public:
+    /**
+     * @brief Apply the pass to the Linear IR
+     * @param linear_ir the target Linear IR
+     * @return status of the pass
+     */
+    virtual bool run(const lowered::LinearIR& linear_ir) = 0;
 };
 
 /**
@@ -114,6 +129,7 @@ public:
     void register_positioned_passes(const std::vector<PositionedPassLowered>& pos_passes);
 
     void run(lowered::LinearIR& linear_ir) const;
+    void run(const lowered::LinearIR& linear_ir) const;
     void run(lowered::LinearIR& linear_ir, lowered::LinearIR::constExprIt begin, lowered::LinearIR::constExprIt end) const;
 
     /**
