@@ -46,12 +46,12 @@ ov::OutputVector mmdeploy_trt_batched_nms(const ov::frontend::onnx::Node& node) 
     auto nms_scores_inputs = std::make_shared<v1::Transpose>(scores, order);
     
     auto background_label_id = node.get_attribute_value<int64_t>("background_label_id");
-    auto num_classes = node.get_attribute_value<int64_t>("num_classes");
+    // auto num_classes = node.get_attribute_value<int64_t>("num_classes");
 
     auto keep_topk = node.get_attribute_value<int64_t>("keep_topk");
     auto topk = node.get_attribute_value<int64_t>("topk");
 
-    auto clip_boxes = node.get_attribute_value<int64_t>("clip_boxes");
+    // auto clip_boxes = node.get_attribute_value<int64_t>("clip_boxes");
     auto is_normalized = node.get_attribute_value<int64_t>("is_normalized");
 
     auto score_threshold = node.get_attribute_value<float>("score_threshold");
