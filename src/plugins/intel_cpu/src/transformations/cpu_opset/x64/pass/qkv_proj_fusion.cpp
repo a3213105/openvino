@@ -44,6 +44,7 @@ ov::intel_cpu::QKVProjFusion::QKVProjFusion() {
     auto result = q_proj;
 
     matcher_pass_callback callback = [=](ov::pass::pattern::Matcher& m) {
+        return false;
         PatternValidator validator(m);
         if (!validator) {
             return false;
