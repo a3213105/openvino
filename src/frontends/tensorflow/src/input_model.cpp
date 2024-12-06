@@ -401,7 +401,8 @@ std::vector<std::shared_ptr<OpPlace>> InputModel::InputModelTFImpl::topologicall
                                         producer_name);
             ops_to_do.push(m_op_places_map.at(producer_name));
         } else if (op_decoder->get_op_type() == "LookupTableImport" ||
-                   op_decoder->get_op_type() == "LookupTableImportV2") {
+                   op_decoder->get_op_type() == "LookupTableImportV2" ||
+                   op_decoder->get_op_type() == "InitializeTableV2") {
             // all LookupTableImport nodes must be preserved in a graph for conversion because
             // they can be terminating nodes and contain input values for HashTable initialization
             FRONT_END_GENERAL_CHECK(m_op_places_map.count(op_name),

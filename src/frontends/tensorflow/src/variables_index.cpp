@@ -446,7 +446,8 @@ void VariablesIndex::map_assignvariable(const std::shared_ptr<::tensorflow::Grap
 
                 variables_map[variablev2_nodes[0]->node->name()] = variable_name;
             }
-        } else if (node.second->op() == "LookupTableImportV2") {
+        } else if (node.second->op() == "LookupTableImportV2" ||
+                   node.second->op() == "InitializeTableV2") {
             std::vector<PtrNode::SharedPtrNode> hash_tablev2_nodes;
             node.second->find_parent_by_op("HashTableV2", hash_tablev2_nodes);
             if (hash_tablev2_nodes.size() == 0 || node.second->node->input_size() < 3) {

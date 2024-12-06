@@ -17,7 +17,7 @@ namespace frontend {
 namespace tensorflow {
 namespace op {
 OutputVector translate_lookup_table_import_op(const NodeContext& node) {
-    default_op_checks(node, 3, {"LookupTableImport", "LookupTableImportV2"});
+    default_op_checks(node, 3, {"LookupTableImport", "LookupTableImportV2", "InitializeTableV2"});
     auto table_handle = node.get_input_by_reference(0);
     auto keys = node.get_input(1);
     auto values = node.get_input(2);

@@ -305,6 +305,7 @@ const std::map<std::string, CreatorFunction> get_supported_ops() {
         {"LookupTableFindV2", CreatorFunction(translate_lookup_table_find_op)},
         {"LookupTableImport", CreatorFunction(translate_lookup_table_import_op)},
         {"LookupTableImportV2", CreatorFunction(translate_lookup_table_import_op)},
+        {"InitializeTableV2", CreatorFunction(translate_lookup_table_import_op)},
         {"LookupTableInsert", CreatorFunction(translate_no_op)},
         {"LookupTableInsertV2", CreatorFunction(translate_no_op)},
         {"LookupTableSize", CreatorFunction(translate_lookup_table_size_op)},
