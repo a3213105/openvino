@@ -20,6 +20,11 @@ OutputVector translate_placeholder_linked_op(const NodeContext& node) {
     default_op_checks(node, 0, {"Placeholder"});
     auto dtype = node.get_attribute<element::Type>("dtype");
     auto shape = node.get_attribute<PartialShape>("shape", PartialShape::dynamic());
+    if (dtype == element::string) {
+        dtype = element::u8;
+        if (shape == ov::PartialShape::dynamic())
+            shape = ov::PartialShape({1, -1});
+    }
     auto res = std::make_shared<v0::Parameter>(dtype, shape);
     set_node_name(node.get_name(), res);
     return res->outputs();
