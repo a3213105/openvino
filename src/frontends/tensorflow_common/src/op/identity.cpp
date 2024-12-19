@@ -22,6 +22,7 @@ OutputVector translate_identity_op(const NodeContext& node) {
                                     "ReadVariableOp",
                                     "ShardedFilename",
                                     "MergeV2Checkpoints",
+                                    "ParseExample",
                                     // TF Lite nodes
                                     "DENSIFY"};
     default_op_checks(node, 1, supported_ops, true);

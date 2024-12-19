@@ -455,6 +455,7 @@ const std::map<std::string, CreatorFunction> get_supported_ops() {
         {"VarIsInitializedOp", CreatorFunction(translate_varisinitialized_op)},
         {"VarHandleOp", CreatorFunction(translate_varhandle_op)},
         {"VariableV2", CreatorFunction(translate_varhandle_op)},
+        {"ParseExample", CreatorFunction(translate_identity_op)},
 
         // Translator for Checkpoint V1
         {"Variable", CreatorFunction(translate_variable_op)},
