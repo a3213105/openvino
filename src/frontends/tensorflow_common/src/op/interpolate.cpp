@@ -22,7 +22,7 @@ namespace op {
 OutputVector translate_interpolate_op(const NodeContext& node) {
     default_op_checks(node,
                       2,
-                      {"ResizeBilinear", "ResizeNearestNeighbor", "RESIZE_BILINEAR", "RESIZE_NEAREST_NEIGHBOR"});
+                      {"ResizeBicubic", "ResizeBilinear", "ResizeNearestNeighbor", "RESIZE_BILINEAR", "RESIZE_NEAREST_NEIGHBOR"});
     auto images = node.get_input(0);
     auto size = node.get_input(1);
     auto op_name = node.get_name();
@@ -52,6 +52,9 @@ OutputVector translate_interpolate_op(const NodeContext& node) {
             interpolate_attrs.mode = v11::Interpolate::InterpolateMode::LINEAR;
         }
         interpolate_attrs.nearest_mode = v11::Interpolate::NearestMode::ROUND_PREFER_FLOOR;
+    } else if (op_type == "ResizeBicubic" || op_type == "RESIZE_BICUBIC") {
+        interpolate_attrs.mode = v11::Interpolate::InterpolateMode::CUBIC;
+        interpolate_attrs.nearest_mode = v11::Interpolate::NearestMode::ROUND_PREFER_FLOOR;
     }
 
     if (tf_align_corners) {
@@ -76,7 +79,7 @@ OutputVector translate_interpolate_op(const NodeContext& node) {
 
     // according to the specification of ResizeBilinear,
     // it always returns FP32 output type so we immediately align input type for it
-    if (op_type == "ResizeBilinear" || op_type == "RESIZE_BILINEAR") {
+    if (op_type == "ResizeBicubic" || op_type == "RESIZE_BICUBIC" || op_type == "ResizeBilinear" || op_type == "RESIZE_BILINEAR") {
         images = make_shared<v0::Convert>(images, element::f32);
     } else if (input_type == element::i16 || input_type == element::u16) {
         // OV Interpolate does not support i16 and u16 so it needs to adjust it temporarily
@@ -89,6 +92,7 @@ OutputVector translate_interpolate_op(const NodeContext& node) {
     // it needs to return original i16 and u16 input_type due to temporal adjustment before
     // this is not required for ResizeBilinear case since it always returns f32 by specification
     if (op_type != "ResizeBilinear" && op_type != "RESIZE_BILINEAR" &&
+        op_type != "ResizeBicubic" && op_type != "RESIZE_BICUBIC"  &&
         (input_type == element::i16 || input_type == element::u16)) {
         interpolate = make_shared<v0::Convert>(interpolate, input_type);
     }

@@ -360,6 +360,7 @@ const std::map<std::string, CreatorFunction> get_supported_ops() {
         {"Reverse", CreatorFunction(translate_reverse_op)},
         {"ReverseSequence", CreatorFunction(translate_reverse_sequence_op)},
         {"ReverseV2", CreatorFunction(translate_reverse_v2_op)},
+        {"ResizeBicubic", CreatorFunction(translate_interpolate_op)},
         {"ResizeBilinear", CreatorFunction(translate_interpolate_op)},
         {"ResizeNearestNeighbor", CreatorFunction(translate_interpolate_op)},
         {"ResourceGather", CreatorFunction(translate_resource_gather_op)},
