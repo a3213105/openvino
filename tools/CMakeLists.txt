@@ -5,10 +5,6 @@
 # Python tools
 #
 
-# MO
-
-add_subdirectory(mo)
-
 if(ENABLE_PYTHON)
     # Benchmark Tool
     add_subdirectory(benchmark_tool)
@@ -19,7 +15,3 @@ if(ENABLE_PYTHON)
     # OpenVino Hybrid Precisio Checker Tool
     add_subdirectory(hybrid_precision_checker)
 endif()
-
-# wheel openvino-dev
-
-add_subdirectory(openvino_dev)
