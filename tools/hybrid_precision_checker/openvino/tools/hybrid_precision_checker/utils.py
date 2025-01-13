@@ -83,6 +83,11 @@ def parse_args():
                       help='Optional if model shapes are all static. '
                       'Required if at least one input shape is dynamic and input images are not provided.'
                       'Set shape for input tensors. For example, "input1[1,3,224,224][1,3,448,448],input2[1,4][1,8]" or "[1,3,224,224][1,3,448,448] in case of one input size.')
+    args.add_argument('-i', '--input', type=str, required=False,
+                      help='Optional. Path to a sample input')
+    args.add_argument('-d', '--data_threshold', type=check_positive_float, required=False, default=0.001,
+                      help='Optional. Acceptable threshold of float diff')
+
     # args.add_argument('-p', '--infer_precision', type=str, required=False,
     #                   help='Optional. Specifies the inference precision. Example #1: \'-infer_precision bf16\'. Example #2: \'-infer_precision CPU:bf16,GPU:f32\'')
 

@@ -33,8 +33,9 @@ class OV_Result:
 
 
 class ResultChecker():
-    def __init__(self) -> None:
+    def __init__(self, data_threshold) -> None:
         self.target_outputs = []
+        self.threshold = data_threshold
 
     def set_outputs(self, namelist):
         self.target_outputs = []
@@ -54,7 +55,8 @@ class ResultChecker():
             if datasize1 != datasize2:
                 return 2
             for k in range(datasize1):
-                if data1[k] != data2[k]:
+                # if data1[k] != data2[k]:
+                if abs(data1[k] - data2[k]) > self.threshold:
                     # logger.info(f"#### [{target}, {index}, {j}, {k}] {data1[k]} != {data2[k]}")
                     return 3
         return 0

@@ -1761,7 +1761,7 @@ void Graph::EnforceInferencePrecision() {
             continue;
 
         if (node->enforceFP32) {
-            printf("[Info] [Gragh] %s is enforced to use FP32\n", node->getName().c_str());
+            // printf("[Info] [Gragh] %s is enforced to use FP32\n", node->getName().c_str());
             continue;
         }
 

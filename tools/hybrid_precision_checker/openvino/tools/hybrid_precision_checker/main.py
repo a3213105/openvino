@@ -62,22 +62,10 @@ def hyper_checker_infer(runner, data_queue):
         perfs_count_list.append(request.profiling_info)
     return res_queue, perfs_count_list
 
-
-def search_loop(path_to_model, path_to_model_bin, data_shape, data_queue, res_queue_fp32,
-                threshold, results_cmp, searcher, new_model):
-    # first round bf16 evaluation
-    runner_bf16, _ = init_model(
-        path_to_model, path_to_model_bin, "bf16", data_shape, 16)
-    
-    res_queue_bf16, perfs_count_list_bf16 = hyper_checker_infer(
-        runner_bf16, data_queue)
-    
-    right, total = results_cmp.compare_results(res_queue_fp32, res_queue_bf16)
-    
-    accuracy_loss = 1.0 - right*1.0/total
-    
-    bf16_list, average_time = parser_perf_counters(perfs_count_list_bf16)
-
+def search_loop_param(searcher, bf16_list, right, average_time, 
+                      accuracy_loss, threshold, new_model, 
+                      path_to_model_bin, data_queue, data_shape, 
+                      res_queue_fp32, results_cmp):
     searcher.init_searcher(bf16_list)
     searcher.store_config(right, average_time)
 
@@ -108,13 +96,37 @@ def search_loop(path_to_model, path_to_model_bin, data_shape, data_queue, res_qu
                 f"fallback {potential_force_fp32_set} to FP32 pass accuracy check!!! accuracy_loss={accuracy_loss:.3f} < {threshold}")
             break
         else:
-            if last_right < right:
+            if last_right <= right:
                 logger.debug(f"### last_right={last_right}, right={right}")
                 last_right = right
                 _, average_time = parser_perf_counters(perfs_count_list)
                 searcher.store_config(right, average_time)
             logger.info(
                 f"accuracy_loss={accuracy_loss:.3f} > {threshold}, try to fallback more ops")
+
+    
+def search_loop(path_to_model, path_to_model_bin, data_shape, data_queue, res_queue_fp32,
+                threshold, results_cmp, searcher, new_model):
+    # first round bf16 evaluation
+    runner_bf16, _ = init_model(
+        path_to_model, path_to_model_bin, "bf16", data_shape, 16)
+    
+    res_queue_bf16, perfs_count_list_bf16 = hyper_checker_infer(
+        runner_bf16, data_queue)
+    
+    right, total = results_cmp.compare_results(res_queue_fp32, res_queue_bf16)
+    
+    accuracy_loss = 1.0 - right*1.0/total
+    
+    bf16_list, average_time = parser_perf_counters(perfs_count_list_bf16)
+
+    search_loop_param(searcher, bf16_list, right, average_time, accuracy_loss, threshold,
+                      new_model, path_to_model_bin, data_queue, data_shape, res_queue_fp32,
+                      results_cmp)
+    bf16_list.sort(reverse=True)
+    search_loop_param(searcher, bf16_list, right, average_time, accuracy_loss, threshold,
+                      new_model, path_to_model_bin, data_queue, data_shape, res_queue_fp32,
+                      results_cmp)
     return
 
 
@@ -132,6 +144,11 @@ def main():
         data_shape = args.data_shape
         number_infer_requests = args.number_infer_requests
         threshold = args.threshold
+        data_threshold = args.data_threshold
+        if args.input is not None:
+            input_name = [args.input]
+        else :
+            input_name = None
         # if data_queue is NULL generate random data
         # run with fp32
         head, ext = os.path.splitext(model_filename)
@@ -144,14 +161,14 @@ def main():
         runner_fp32, app_inputs_info_fp32 = init_model(
             model_filename, weights_filename, "f32", data_shape, 16)
         data_queue = generate_input(
-            None, app_inputs_info_fp32, number_infer_requests)
+            input_name, app_inputs_info_fp32, number_infer_requests)
         res_queue_fp32, perfs_count_list_fp32 = hyper_checker_infer(
             runner_fp32, data_queue)
         _, average_time = parser_perf_counters(perfs_count_list_fp32)
 
         searcher = FP32FallbackSearcher(number_infer_requests, average_time)
         new_model = ModelCreator(model_filename)
-        result_cmp = ResultChecker()
+        result_cmp = ResultChecker(data_threshold)
         result_cmp.set_outputs([0])
 
         search_loop(model_filename, weights_filename, data_shape, data_queue,
@@ -170,13 +187,15 @@ def main():
         logger.info(
             f"best config = {best_set}, average_latency={best_latency:.3f}, accuracy={best_accucary/number_infer_requests:.3f}")
 
-        if best_set == "None":
-            logger.info("All ops can run under bf16!")
+        if best_set is None :
+            logger.info("All ops can run under FP32!")
+        elif best_set == "None":
+            logger.info("All ops can run under BF16!")
         else:
             new_path = model_filename + '.new'
             logger.info(
                 f'generate new xml {new_path}, with {best_set} fallback to FP32, '
-                'accuracy={best_accucary/number_infer_requests:.3f}')
+                f'accuracy={best_accucary/number_infer_requests:.3f}')
             new_model.create_new_xml(new_path, best_set)
 
     except Exception as e:

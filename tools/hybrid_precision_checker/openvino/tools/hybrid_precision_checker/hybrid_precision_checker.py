@@ -117,13 +117,13 @@ class ModelRunner:
         supported_properties = self.core.get_property(
             "CPU", 'SUPPORTED_PROPERTIES')
         config['NUM_STREAMS'] = self.nireq
-        config['AFFINITY'] = 'CORE'
-        config['INFERENCE_NUM_THREADS'] = "0"  # str(stream_num) #"0"
+        # config['AFFINITY'] = 'CORE'
+        # config['INFERENCE_NUM_THREADS'] = "0"  # str(stream_num) #"0"
         config['PERF_COUNT'] = 'YES'
         config['INFERENCE_PRECISION_HINT'] = data_type  # 'bf16'#'f32'
         config['PERFORMANCE_HINT'] = 'THROUGHPUT'  # 'THROUGHPUT' #"LATENCY"
-        config['CPU_THREADS_NUM'] = "0"
-        config['CPU_BIND_THREAD'] = 'YES'  # 'YES'#'NUMA' #'HYBRID_AWARE'
+        # config['CPU_THREADS_NUM'] = "0"
+        # config['CPU_BIND_THREAD'] = 'YES'  # 'YES'#'NUMA' #'HYBRID_AWARE'
         self.compiled_model = self.core.compile_model(
             self.model, 'CPU', config)
 

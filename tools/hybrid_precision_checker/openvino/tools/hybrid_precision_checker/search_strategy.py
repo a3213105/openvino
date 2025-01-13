@@ -3,8 +3,8 @@ import copy
 from .logging import logger
 
 
-can_run_bf16_ops = {"Convolution", "FullyConnected", "RNNCell", "RNNSeq",
-                    "MatMul", "MulAdd", "Add", "ROIPooling", "Interpolate",
+can_run_bf16_ops = {"Convolution", "GroupConvolution", "FullyConnected", "RNNCell", "RNNSeq",
+                    "MatMul", "MulAdd", "Add", "ROIPooling", "Interpolate", "AvgPool",
                     "MVN", "MaxPool"}
 
 
@@ -21,7 +21,9 @@ class FP32FallbackSearcher:
         for it in namelist:
             if it[1] in can_run_bf16_ops:
                 self.bf16_ops_list.append(it[0])
+                print(f"Add BF16 {it[0]}, {it[1]}")
         self.potential_bf16_ops_list = self.bf16_ops_list.copy()
+        # print(f"potential_bf16_ops_list={self.potential_bf16_ops_list}")
 
     def has_next(self):
         if len(self.potential_bf16_ops_list) > 0:

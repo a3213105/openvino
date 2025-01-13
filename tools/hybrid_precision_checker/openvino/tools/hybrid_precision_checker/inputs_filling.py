@@ -173,26 +173,46 @@ def get_input_data(paths_to_input, app_input_info, count):
     data = {}
     for port, info in enumerate(app_input_info):
         if info.name in image_mapping:
-            data[port] = get_image_tensors(
-                image_mapping[info.name][:images_to_be_used_map[info.name]], info, batch_sizes_map[info.name])
-
+            # data[port] = get_image_tensors(
+            #     image_mapping[info.name][:images_to_be_used_map[info.name]], info, batch_sizes_map[info.name])
+            data_tmp = []
+            for i in range(count):
+                data_tmp.append(get_binary_tensors(
+                    image_mapping[info.name][:images_to_be_used_map[info.name]], info, batch_sizes_map[info.name]))
+            data[port] = data_tmp
         elif info.name in numpy_mapping:
-            data[port] = get_numpy_tensors(
-                numpy_mapping[info.name][:numpys_to_be_used_map[info.name]], info, batch_sizes_map[info.name])
-
+            # data[port] = get_numpy_tensors(
+            #     numpy_mapping[info.name][:numpys_to_be_used_map[info.name]], info, batch_sizes_map[info.name])
+            data_tmp = []
+            for i in range(count):
+                data_tmp.append(get_binary_tensors(
+                    numpy_mapping[info.name][:numpys_to_be_used_map[info.name]], info, batch_sizes_map[info.name]))
+            data[port] = data_tmp
         elif info.name in binary_mapping:
-            data[port] = get_binary_tensors(
-                binary_mapping[info.name][:binaries_to_be_used_map[info.name]], info, batch_sizes_map[info.name])
-
+            # data[port] = get_binary_tensors(
+            #     binary_mapping[info.name][:binaries_to_be_used_map[info.name]], info, batch_sizes_map[info.name])
+            data_tmp = []
+            for i in range(count):
+                data_tmp.append(get_binary_tensors(
+                    binary_mapping[info.name][:binaries_to_be_used_map[info.name]], info, batch_sizes_map[info.name]))
+            data[port] = data_tmp
         elif info.is_image_info and len(image_sizes) == 1:
             image_size = image_sizes[0]
             logger.info(
                 f"Create input tensors for input '{info.name}' with image sizes: {image_size}")
-            data[port] = get_image_info_tensors(image_size, info)
+            # data[port] = get_image_info_tensors(image_size, info)
+            data_tmp = []
+            for i in range(count):
+                data_tmp.append(get_image_info_tensors(image_size, info))
+            data[port] = data_tmp
         else:
             logger.info(
                 f"Fill input '{info.name}' with random values at port:{port}")
-            data[port] = fill_tensors_with_randoms(info, count)
+            # data[port] = fill_tensors_with_randoms(info, count)
+            data_tmp = []
+            for i in range(count):
+                data_tmp.append(fill_tensors_with_random(info))
+            data[port] = data_tmp
 
     return DataQueue(data, len(data[0]))
 

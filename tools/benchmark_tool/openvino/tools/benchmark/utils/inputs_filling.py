@@ -61,7 +61,8 @@ def get_group_batch_sizes(app_input_info):
                 if batch_size == 0:
                     batch_size = shape[batch_index]
                 elif batch_size != shape[batch_index]:
-                    raise Exception("Can't deterimine batch size: batch is different for different inputs!")
+                    batch_size = 1
+                    # raise Exception("Can't deterimine batch size: batch is different for different inputs!")
         if batch_size == 0:
             batch_size = 1
         batch_sizes.append(batch_size)
