@@ -50,15 +50,17 @@ GridSample::GridSample(const std::shared_ptr<ov::Node>& op, const GraphContext::
         THROW_CPU_NODE_ERR("has incorrect number of input/output ports.");
 
     const auto& dataShape = getInputShapeAtPort(IN_DATA);
-    if (dataShape.getRank() != 4)
+    if (dataShape.getRank() != 4 && dataShape.getRank() != 5)
         THROW_CPU_NODE_ERR("has incorrect rank of the Data input.");
 
     const auto& gridShape = getInputShapeAtPort(IN_GRID);
-    if (gridShape.getRank() != 4)
+    if (gridShape.getRank() != 4 && gridShape.getRank() != 5) 
         THROW_CPU_NODE_ERR("has incorrect rank of the Grid input.");
-    if (gridShape.isStatic() && gridShape.getDims()[3] != 2)
-        THROW_CPU_NODE_ERR("has incorrect shape of the Grid input. The 4th dimension should be equal to 2.");
+    const auto dims = gridShape.getRank() - 2;
+    if (gridShape.isStatic() && gridShape.getDims()[gridShape.getRank()-1] != dims)
+        THROW_CPU_NODE_ERR("has incorrect shape of the Grid input. The 4th dimension should be equal to %d.", dims);
 
+    is2D = dataShape.getRank() != 5;
     const auto& attributes = ov::as_type_ptr<ov::op::v9::GridSample>(op)->get_attributes();
     alignCorners = attributes.align_corners;
     switch (attributes.mode) {
@@ -126,7 +128,7 @@ void GridSample::createPrimitive() {
     const auto& srcDataDims = getInputShapeAtPort(IN_DATA).getDims();
     if (!jcp.dynamicShapes) {
         jcp.batchNum = srcDataDims[0];
-        jcp.cannelNum = srcDataDims[1];
+        jcp.channelNum = srcDataDims[1];
         jcp.dynamicBatch = false;
         jcp.dynamicChannel = false;
         jcp.srcBatchStepB =
@@ -135,16 +137,27 @@ void GridSample::createPrimitive() {
         jcp.dynamicBatch = srcDataDims[0] == Shape::UNDEFINED_DIM;
         jcp.batchNum = jcp.dynamicBatch ? 1lu : srcDataDims[0];
         jcp.dynamicChannel = srcDataDims[1] == Shape::UNDEFINED_DIM;
-        jcp.cannelNum = jcp.dynamicChannel ? 1lu : srcDataDims[1];
+        jcp.channelNum = jcp.dynamicChannel ? 1lu : srcDataDims[1];
     }
 
-    if (x64::mayiuse(x64::avx512_core)) {
-        jitKernel.reset(new kernel::GridSampleKernel<x64::avx512_core>(jcp));
-    } else if (x64::mayiuse(x64::avx2)) {
-        jitKernel.reset(new kernel::GridSampleKernel<x64::avx2>(jcp));
-    } else if (x64::mayiuse(x64::sse41)) {
-        jitKernel.reset(new kernel::GridSampleKernel<x64::sse41>(jcp));
+    if (is2D) {
+        if (x64::mayiuse(x64::avx512_core)) {
+            jitKernel.reset(new kernel::GridSampleKernel<x64::avx512_core>(jcp));
+        } else if (x64::mayiuse(x64::avx2)) {
+            jitKernel.reset(new kernel::GridSampleKernel<x64::avx2>(jcp));
+        } else if (x64::mayiuse(x64::sse41)) {
+            jitKernel.reset(new kernel::GridSampleKernel<x64::sse41>(jcp));
+        }
+    } else {
+        if (x64::mayiuse(x64::avx512_core)) {
+            jitKernel.reset(new kernel::GridSample3DKernel<x64::avx512_core>(jcp));
+        } else if (x64::mayiuse(x64::avx2)) {
+            jitKernel.reset(new kernel::GridSample3DKernel<x64::avx2>(jcp));
+        } else if (x64::mayiuse(x64::sse41)) {
+            jitKernel.reset(new kernel::GridSample3DKernel<x64::sse41>(jcp));
+        }
     }
+
     if (!jitKernel) {
         THROW_CPU_NODE_ERR("could not create JIT kernel.");
     }
@@ -159,15 +172,20 @@ void GridSample::createPrimitive() {
 
             p.srcHeightF.resize(dataElPerVec);
             p.srcWidthF.resize(dataElPerVec);
+            p.srcDepthF.resize(dataElPerVec);
             p.srcWidthB.resize(dataElPerVec);
             p.dataTypeSize.resize(dataElPerVec);
             p.srcHeightSub1F.resize(dataElPerVec);
             p.srcWidthSub1F.resize(dataElPerVec);
+            p.srcDepthSub1F.resize(dataElPerVec);
             p.srcHeightMul2F.resize(dataElPerVec);
             p.srcWidthMul2F.resize(dataElPerVec);
+            p.srcDepthMul2F.resize(dataElPerVec);
             p.srcHeightMul2Sub1F.resize(dataElPerVec);
             p.srcWidthMul2Sub1F.resize(dataElPerVec);
+            p.srcDepthMul2Sub1F.resize(dataElPerVec);
             if (alignCorners) {
+                p.dDenormCoefF.resize(dataElPerVec);
                 p.wDenormCoefF.resize(dataElPerVec);
                 p.hDenormCoefF.resize(dataElPerVec);
             }
@@ -177,7 +195,6 @@ void GridSample::createPrimitive() {
             }
         });
     }
-
     Node::createPrimitive();
 }
 
@@ -196,73 +213,156 @@ void GridSample::prepareParams() {
 
     const uint64_t dataElPerVec = jitKernel->getDataElPerVec();
     const auto& srcDataShape = dataMemPtr->getStaticDims();
+    const auto& gridShape = gridMemPtr->getStaticDims();
     const auto& dstShape = dstMemPtr->getStaticDims();
-    const uint64_t totalWork = dstShape[2] * dstShape[3];
+    uint64_t totalWork = dstShape[2] * dstShape[3];
+    std::cout << "Input=" << srcDataShape[0] << "," << srcDataShape[1] << "," << srcDataShape[2] << "," << srcDataShape[3] << "," << srcDataShape[4]
+    << ", grid=" << gridShape[0] << "," << gridShape[1] << "," << gridShape[2] << "," << gridShape[3] << "," << gridShape[4]
+    << ", output=" << dstShape[0] << "," << dstShape[1] << "," << dstShape[2] << "," << dstShape[3] << "," << dstShape[4]
+    << ", alignCorners=" << alignCorners << std::endl;
+    if (dstShape.size()==5) {
+        totalWork *= dstShape[4];
+    }
     const uint64_t wpt = ((totalWork / dataElPerVec) / m_threads_num + 1) * dataElPerVec;
 
-    parallel_nt(m_threads_num, [&](const int ithr, const int nthr) {
-        const uint64_t dstStart = std::min(wpt * ithr, totalWork);
-        const uint64_t dstEnd = std::min(wpt * (ithr + 1), totalWork);
-
-        auto& p = execParamsPerThread[ithr];
-
-        p.workAmount = dstEnd - dstStart;
-        if (p.workAmount == 0lu) {
-            return;
-        }
-
-        p.batchNum = srcDataShape[0];
-        p.channelsNum = srcDataShape[1];
-        p.srcHeightF[0] = srcDataShape[2];
-        p.srcWidthF[0] = srcDataShape[3];
-
-        p.gridStartB = dstStart * 2 * gridTypeSize;
-        p.dstStartB = dstStart * dataTypeSize;
-
-        p.srcBatchStepB =
-            std::accumulate(srcDataShape.begin() + 1, srcDataShape.end(), dataTypeSize, std::multiplies<Dim>());
-        p.gridBatchStepB = (dstShape[2] * dstShape[3] - p.workAmount) * 2 * gridTypeSize;
-        p.dstBatchStepB = (dstShape[1] * dstShape[2] * dstShape[3] - p.workAmount) * dataTypeSize;
-
-        p.srcChannelStepB = srcDataShape[2] * srcDataShape[3] * dataTypeSize;
-        p.dstChannelStepB = dstShape[2] * dstShape[3] * dataTypeSize;
-        p.dataTypeSize[0] = dataTypeSize;
-
-        p.srcHeightSub1F[0] = p.srcHeightF[0] - 1.f;
-        p.srcWidthSub1F[0] = p.srcWidthF[0] - 1.f;
-        p.srcHeightMul2F[0] = p.srcHeightF[0] * 2.f;
-        p.srcWidthMul2F[0] = p.srcWidthF[0] * 2.f;
-        if (interpolationMode == GridSampleInterpolationMode::BICUBIC && srcDataShape[3] >= 4) {
-            p.srcWidthB[0] = (srcDataShape[3] - 3) * dataTypeSize;
-        } else {
-            p.srcWidthB[0] = srcDataShape[3] * dataTypeSize;
-        }
-        if (alignCorners) {
-            p.srcHeightMul2Sub1F[0] = p.srcHeightF[0] == 1.f ? 1.f : p.srcHeightSub1F[0] * 2.f;
-            p.srcWidthMul2Sub1F[0] = p.srcWidthF[0] == 1.f ? 1.f : p.srcWidthSub1F[0] * 2.f;
-            p.wDenormCoefF[0] = (p.srcWidthF[0] - 1.f) / 2.f;
-            p.hDenormCoefF[0] = (p.srcHeightF[0] - 1.f) / 2.f;
-        } else {
-            p.srcHeightMul2Sub1F[0] = p.srcHeightMul2F[0] - 1.f;
-            p.srcWidthMul2Sub1F[0] = p.srcWidthMul2F[0] - 1.f;
-        }
-        if (!x64::mayiuse(x64::avx512_core)) {
-            std::fill(p.srcHeightF.begin(), p.srcHeightF.end(), p.srcHeightF[0]);
-            std::fill(p.srcWidthF.begin(), p.srcWidthF.end(), p.srcWidthF[0]);
-            std::fill(p.dataTypeSize.begin(), p.dataTypeSize.end(), p.dataTypeSize[0]);
-            std::fill(p.srcHeightSub1F.begin(), p.srcHeightSub1F.end(), p.srcHeightSub1F[0]);
-            std::fill(p.srcWidthSub1F.begin(), p.srcWidthSub1F.end(), p.srcWidthSub1F[0]);
-            std::fill(p.srcHeightMul2F.begin(), p.srcHeightMul2F.end(), p.srcHeightMul2F[0]);
-            std::fill(p.srcWidthMul2F.begin(), p.srcWidthMul2F.end(), p.srcWidthMul2F[0]);
-            std::fill(p.srcWidthB.begin(), p.srcWidthB.end(), p.srcWidthB[0]);
-            std::fill(p.srcHeightMul2Sub1F.begin(), p.srcHeightMul2Sub1F.end(), p.srcHeightMul2Sub1F[0]);
-            std::fill(p.srcWidthMul2Sub1F.begin(), p.srcWidthMul2Sub1F.end(), p.srcWidthMul2Sub1F[0]);
-            if (alignCorners) {
-                std::fill(p.wDenormCoefF.begin(), p.wDenormCoefF.end(), p.wDenormCoefF[0]);
-                std::fill(p.hDenormCoefF.begin(), p.hDenormCoefF.end(), p.hDenormCoefF[0]);
+    if (is2D) {
+        parallel_nt(m_threads_num, [&](const int ithr, const int nthr) {
+            const uint64_t dstStart = std::min(wpt * ithr, totalWork);
+            const uint64_t dstEnd = std::min(wpt * (ithr + 1), totalWork);
+    
+            auto& p = execParamsPerThread[ithr];
+    
+            p.workAmount = dstEnd - dstStart;
+            if (p.workAmount == 0lu) {
+                return;
             }
-        }
-    });
+    
+            p.batchNum = srcDataShape[0];
+            p.channelsNum = srcDataShape[1];
+            p.srcHeightF[0] = srcDataShape[2];
+            p.srcWidthF[0] = srcDataShape[3];
+    
+            p.gridStartB = dstStart * 2 * gridTypeSize;
+            p.dstStartB = dstStart * dataTypeSize;
+    
+            p.srcBatchStepB =
+                std::accumulate(srcDataShape.begin() + 1, srcDataShape.end(), dataTypeSize, std::multiplies<Dim>());
+            p.gridBatchStepB = (dstShape[2] * dstShape[3] - p.workAmount) * 2 * gridTypeSize;
+            p.dstBatchStepB = (dstShape[1] * dstShape[2] * dstShape[3] - p.workAmount) * dataTypeSize;
+    
+            p.srcChannelStepB = srcDataShape[2] * srcDataShape[3] * dataTypeSize;
+            p.dstChannelStepB = dstShape[2] * dstShape[3] * dataTypeSize;
+            p.dataTypeSize[0] = dataTypeSize;
+    
+            p.srcHeightSub1F[0] = p.srcHeightF[0] - 1.f;
+            p.srcWidthSub1F[0] = p.srcWidthF[0] - 1.f;
+            p.srcHeightMul2F[0] = p.srcHeightF[0] * 2.f;
+            p.srcWidthMul2F[0] = p.srcWidthF[0] * 2.f;
+            if (interpolationMode == GridSampleInterpolationMode::BICUBIC && srcDataShape[3] >= 4) {
+                p.srcWidthB[0] = (srcDataShape[3] - 3) * dataTypeSize;
+            } else {
+                p.srcWidthB[0] = srcDataShape[3] * dataTypeSize;
+            }
+            if (alignCorners) {
+                p.srcHeightMul2Sub1F[0] = p.srcHeightF[0] == 1.f ? 1.f : p.srcHeightSub1F[0] * 2.f;
+                p.srcWidthMul2Sub1F[0] = p.srcWidthF[0] == 1.f ? 1.f : p.srcWidthSub1F[0] * 2.f;
+                p.wDenormCoefF[0] = (p.srcWidthF[0] - 1.f) / 2.f;
+                p.hDenormCoefF[0] = (p.srcHeightF[0] - 1.f) / 2.f;
+            } else {
+                p.srcHeightMul2Sub1F[0] = p.srcHeightMul2F[0] - 1.f;
+                p.srcWidthMul2Sub1F[0] = p.srcWidthMul2F[0] - 1.f;
+            }
+            if (!x64::mayiuse(x64::avx512_core)) {
+                std::fill(p.srcHeightF.begin(), p.srcHeightF.end(), p.srcHeightF[0]);
+                std::fill(p.srcWidthF.begin(), p.srcWidthF.end(), p.srcWidthF[0]);
+                std::fill(p.dataTypeSize.begin(), p.dataTypeSize.end(), p.dataTypeSize[0]);
+                std::fill(p.srcHeightSub1F.begin(), p.srcHeightSub1F.end(), p.srcHeightSub1F[0]);
+                std::fill(p.srcWidthSub1F.begin(), p.srcWidthSub1F.end(), p.srcWidthSub1F[0]);
+                std::fill(p.srcHeightMul2F.begin(), p.srcHeightMul2F.end(), p.srcHeightMul2F[0]);
+                std::fill(p.srcWidthMul2F.begin(), p.srcWidthMul2F.end(), p.srcWidthMul2F[0]);
+                std::fill(p.srcWidthB.begin(), p.srcWidthB.end(), p.srcWidthB[0]);
+                std::fill(p.srcHeightMul2Sub1F.begin(), p.srcHeightMul2Sub1F.end(), p.srcHeightMul2Sub1F[0]);
+                std::fill(p.srcWidthMul2Sub1F.begin(), p.srcWidthMul2Sub1F.end(), p.srcWidthMul2Sub1F[0]);
+                if (alignCorners) {
+                    std::fill(p.wDenormCoefF.begin(), p.wDenormCoefF.end(), p.wDenormCoefF[0]);
+                    std::fill(p.hDenormCoefF.begin(), p.hDenormCoefF.end(), p.hDenormCoefF[0]);
+                }
+            }
+        });    
+    } else {
+        parallel_nt(m_threads_num, [&](const int ithr, const int nthr) {
+            const uint64_t dstStart = std::min(wpt * ithr, totalWork);
+            const uint64_t dstEnd = std::min(wpt * (ithr + 1), totalWork);
+    
+            auto& p = execParamsPerThread[ithr];
+    
+            p.workAmount = dstEnd - dstStart;
+            if (p.workAmount == 0lu) {
+                return;
+            }
+    
+            p.batchNum = srcDataShape[0];
+            p.channelsNum = srcDataShape[1];
+            p.srcDepthF[0] = srcDataShape[2];
+            p.srcHeightF[0] = srcDataShape[3];
+            p.srcWidthF[0] = srcDataShape[4];
+    
+            p.gridStartB = dstStart * 2 * gridTypeSize;
+            p.dstStartB = dstStart * dataTypeSize;
+    
+            p.srcBatchStepB =
+                std::accumulate(srcDataShape.begin() + 1, srcDataShape.end(), dataTypeSize, std::multiplies<Dim>());
+            p.gridBatchStepB = (dstShape[2] * dstShape[3] * dstShape[4] - p.workAmount) * 2 * gridTypeSize;
+            p.dstBatchStepB = (dstShape[1] * dstShape[2] * dstShape[3] * dstShape[4] - p.workAmount) * dataTypeSize;
+    
+            p.srcChannelStepB = srcDataShape[2] * srcDataShape[3] * srcDataShape[4] * dataTypeSize;
+            p.dstChannelStepB = dstShape[2] * dstShape[3] * dstShape[4] * dataTypeSize;
+            p.dataTypeSize[0] = dataTypeSize;
+    
+            p.srcDepthSub1F[0] = p.srcDepthF[0] - 1.f;
+            p.srcHeightSub1F[0] = p.srcHeightF[0] - 1.f;
+            p.srcWidthSub1F[0] = p.srcWidthF[0] - 1.f;
+            p.srcDepthMul2F[0] = p.srcDepthF[0] * 2.f;
+            p.srcHeightMul2F[0] = p.srcHeightF[0] * 2.f;
+            p.srcWidthMul2F[0] = p.srcWidthF[0] * 2.f;
+
+            p.srcWidthB[0] = srcDataShape[4] * dataTypeSize;
+
+            if (alignCorners) {
+                p.srcDepthMul2Sub1F[0] = p.srcDepthF[0] == 1.f ? 1.f : p.srcDepthSub1F[0] * 2.f;
+                p.srcHeightMul2Sub1F[0] = p.srcHeightF[0] == 1.f ? 1.f : p.srcHeightSub1F[0] * 2.f;
+                p.srcWidthMul2Sub1F[0] = p.srcWidthF[0] == 1.f ? 1.f : p.srcWidthSub1F[0] * 2.f;
+                p.dDenormCoefF[0] = (p.srcDepthF[0] - 1.f) / 2.f;
+                p.wDenormCoefF[0] = (p.srcWidthF[0] - 1.f) / 2.f;
+                p.hDenormCoefF[0] = (p.srcHeightF[0] - 1.f) / 2.f;
+            } else {
+                p.srcDepthMul2Sub1F[0] = p.srcDepthMul2F[0] - 1.f;
+                p.srcHeightMul2Sub1F[0] = p.srcHeightMul2F[0] - 1.f;
+                p.srcWidthMul2Sub1F[0] = p.srcWidthMul2F[0] - 1.f;
+            }
+            if (!x64::mayiuse(x64::avx512_core)) {
+                std::fill(p.srcDepthF.begin(), p.srcDepthF.end(), p.srcDepthF[0]);
+                std::fill(p.srcHeightF.begin(), p.srcHeightF.end(), p.srcHeightF[0]);
+                std::fill(p.srcWidthF.begin(), p.srcWidthF.end(), p.srcWidthF[0]);
+                std::fill(p.dataTypeSize.begin(), p.dataTypeSize.end(), p.dataTypeSize[0]);
+                std::fill(p.srcDepthSub1F.begin(), p.srcDepthSub1F.end(), p.srcDepthSub1F[0]);
+                std::fill(p.srcHeightSub1F.begin(), p.srcHeightSub1F.end(), p.srcHeightSub1F[0]);
+                std::fill(p.srcWidthSub1F.begin(), p.srcWidthSub1F.end(), p.srcWidthSub1F[0]);
+                std::fill(p.srcDepthMul2F.begin(), p.srcDepthMul2F.end(), p.srcDepthMul2F[0]);
+                std::fill(p.srcHeightMul2F.begin(), p.srcHeightMul2F.end(), p.srcHeightMul2F[0]);
+                std::fill(p.srcWidthMul2F.begin(), p.srcWidthMul2F.end(), p.srcWidthMul2F[0]);
+                std::fill(p.srcWidthB.begin(), p.srcWidthB.end(), p.srcWidthB[0]);
+                std::fill(p.srcDepthMul2Sub1F.begin(), p.srcDepthMul2Sub1F.end(), p.srcDepthMul2Sub1F[0]);
+                std::fill(p.srcHeightMul2Sub1F.begin(), p.srcHeightMul2Sub1F.end(), p.srcHeightMul2Sub1F[0]);
+                std::fill(p.srcWidthMul2Sub1F.begin(), p.srcWidthMul2Sub1F.end(), p.srcWidthMul2Sub1F[0]);
+                if (alignCorners) {
+                    std::fill(p.dDenormCoefF.begin(), p.dDenormCoefF.end(), p.dDenormCoefF[0]);
+                    std::fill(p.wDenormCoefF.begin(), p.wDenormCoefF.end(), p.wDenormCoefF[0]);
+                    std::fill(p.hDenormCoefF.begin(), p.hDenormCoefF.end(), p.hDenormCoefF[0]);
+                }
+            }
+        });    
+    }
 }
 
 void GridSample::execute(dnnl::stream strm) {
@@ -270,42 +370,84 @@ void GridSample::execute(dnnl::stream strm) {
     const uint8_t* gridData = getSrcDataAtPortAs<uint8_t>(IN_GRID);
     uint8_t* dstData = getDstDataAtPortAs<uint8_t>(0);
 
-    auto threadBody = [&](const int ithr, const int nthr) {
-        const auto& p = execParamsPerThread[ithr];
-        auto arg = kernel::GridSamplesKernelExecArgs();
-        if (p.workAmount == 0lu) {
-            return;
-        }
-
-        arg.src = srcData;
-        arg.grid = gridData + p.gridStartB;
-        arg.dst = dstData + p.dstStartB;
-        arg.batchNum = p.batchNum;
-        arg.channelsNum = p.channelsNum;
-        arg.srcHeightF = p.srcHeightF.data();
-        arg.srcWidthF = p.srcWidthF.data();
-        arg.srcWidthB = p.srcWidthB.data();
-        arg.srcChannelStepB = p.srcChannelStepB;
-        arg.dstChannelStepB = p.dstChannelStepB;
-        arg.srcBatchStepB = p.srcBatchStepB;
-        arg.gridBatchStepB = p.gridBatchStepB;
-        arg.dstBatchStepB = p.dstBatchStepB;
-        arg.srcHeightSub1F = p.srcHeightSub1F.data();
-        arg.srcWidthSub1F = p.srcWidthSub1F.data();
-        arg.srcWidthMul2F = p.srcWidthMul2F.data();
-        arg.srcHeightMul2F = p.srcHeightMul2F.data();
-        arg.srcHeightMul2Sub1F = p.srcHeightMul2Sub1F.data();
-        arg.srcWidthMul2Sub1F = p.srcWidthMul2Sub1F.data();
-        arg.wDenormCoefF = p.wDenormCoefF.data();
-        arg.hDenormCoefF = p.hDenormCoefF.data();
-        arg.dataTypeSize = p.dataTypeSize.data();
-        arg.buffer = p.buffer.data();
-        arg.workAmount = p.workAmount;
-
-        (*jitKernel)(&arg);
-    };
-
-    parallel_nt(m_threads_num, threadBody);
+    if (is2D) {
+        auto threadBody = [&](const int ithr, const int nthr) {
+            const auto& p = execParamsPerThread[ithr];
+            auto arg = kernel::GridSamplesKernelExecArgs();
+            if (p.workAmount == 0lu) {
+                return;
+            }
+    
+            arg.src = srcData;
+            arg.grid = gridData + p.gridStartB;
+            arg.dst = dstData + p.dstStartB;
+            arg.batchNum = p.batchNum;
+            arg.channelsNum = p.channelsNum;
+            arg.srcHeightF = p.srcHeightF.data();
+            arg.srcWidthF = p.srcWidthF.data();
+            arg.srcWidthB = p.srcWidthB.data();
+            arg.srcChannelStepB = p.srcChannelStepB;
+            arg.dstChannelStepB = p.dstChannelStepB;
+            arg.srcBatchStepB = p.srcBatchStepB;
+            arg.gridBatchStepB = p.gridBatchStepB;
+            arg.dstBatchStepB = p.dstBatchStepB;
+            arg.srcHeightSub1F = p.srcHeightSub1F.data();
+            arg.srcWidthSub1F = p.srcWidthSub1F.data();
+            arg.srcWidthMul2F = p.srcWidthMul2F.data();
+            arg.srcHeightMul2F = p.srcHeightMul2F.data();
+            arg.srcHeightMul2Sub1F = p.srcHeightMul2Sub1F.data();
+            arg.srcWidthMul2Sub1F = p.srcWidthMul2Sub1F.data();
+            arg.wDenormCoefF = p.wDenormCoefF.data();
+            arg.hDenormCoefF = p.hDenormCoefF.data();
+            arg.dataTypeSize = p.dataTypeSize.data();
+            arg.buffer = p.buffer.data();
+            arg.workAmount = p.workAmount;
+    
+            (*jitKernel)(&arg);
+        };
+        parallel_nt(m_threads_num, threadBody);  
+    } else {
+        auto threadBody = [&](const int ithr, const int nthr) {
+            const auto& p = execParamsPerThread[ithr];
+            auto arg = kernel::GridSamplesKernelExecArgs();
+            if (p.workAmount == 0lu) {
+                return;
+            }
+    
+            arg.src = srcData;
+            arg.grid = gridData + p.gridStartB;
+            arg.dst = dstData + p.dstStartB;
+            arg.batchNum = p.batchNum;
+            arg.channelsNum = p.channelsNum;
+            arg.srcDepthF = p.srcDepthF.data();
+            arg.srcHeightF = p.srcHeightF.data();
+            arg.srcWidthF = p.srcWidthF.data();
+            arg.srcWidthB = p.srcWidthB.data();
+            arg.srcChannelStepB = p.srcChannelStepB;
+            arg.dstChannelStepB = p.dstChannelStepB;
+            arg.srcBatchStepB = p.srcBatchStepB;
+            arg.gridBatchStepB = p.gridBatchStepB;
+            arg.dstBatchStepB = p.dstBatchStepB;
+            arg.srcDepthSub1F = p.srcDepthSub1F.data();
+            arg.srcHeightSub1F = p.srcHeightSub1F.data();
+            arg.srcWidthSub1F = p.srcWidthSub1F.data();
+            arg.srcDepthMul2F = p.srcDepthMul2F.data();
+            arg.srcWidthMul2F = p.srcWidthMul2F.data();
+            arg.srcHeightMul2F = p.srcHeightMul2F.data();
+            arg.srcDepthMul2Sub1F = p.srcDepthMul2Sub1F.data();
+            arg.srcHeightMul2Sub1F = p.srcHeightMul2Sub1F.data();
+            arg.srcWidthMul2Sub1F = p.srcWidthMul2Sub1F.data();
+            arg.dDenormCoefF = p.dDenormCoefF.data();
+            arg.wDenormCoefF = p.wDenormCoefF.data();
+            arg.hDenormCoefF = p.hDenormCoefF.data();
+            arg.dataTypeSize = p.dataTypeSize.data();
+            arg.buffer = p.buffer.data();
+            arg.workAmount = p.workAmount;
+    
+            (*jitKernel)(&arg);
+        };
+        parallel_nt(m_threads_num, threadBody);
+    }
 }
 
 void GridSample::executeDynamicImpl(dnnl::stream strm) {

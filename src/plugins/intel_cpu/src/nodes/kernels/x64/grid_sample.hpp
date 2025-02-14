@@ -30,7 +30,7 @@ struct GridSampleKernelConfParams {
     ov::element::Type inDataPrc;
     ov::element::Type gridPrc;
     uint64_t batchNum = 1lu;
-    uint64_t cannelNum = 1lu;
+    uint64_t channelNum = 1lu;
     uint64_t srcBatchStepB = 0lu;
 };
 
@@ -40,6 +40,7 @@ struct GridSamplesKernelExecArgs {
     void* dst;
     uint64_t batchNum = 1lu;
     uint64_t channelsNum = 1lu;
+    const float* srcDepthF;
     const float* srcWidthF;
     const float* srcHeightF;
     uint64_t srcBatchStepB = 0lu;
@@ -47,21 +48,25 @@ struct GridSamplesKernelExecArgs {
     uint64_t dstBatchStepB = 0lu;
     uint64_t srcChannelStepB = 0lu;
     uint64_t dstChannelStepB = 0lu;
+    const void* dDenormCoefF;
     const void* wDenormCoefF;
     const void* hDenormCoefF;
     const void* srcWidthB;
     const void* srcHeightMul2F;
     const void* srcWidthMul2F;
+    const void* srcDepthMul2F;
     const void* srcHeightMul2Sub1F;
     const void* srcWidthMul2Sub1F;
+    const void* srcDepthMul2Sub1F;
     const void* srcHeightSub1F;
     const void* srcWidthSub1F;
+    const void* srcDepthSub1F;
     const void* dataTypeSize;
     const void* buffer;
     uint64_t workAmount = 0lu;
 };
 
-enum coord { w, h };
+enum coord { w, h, d };
 
 class GridSampleKernelBase : public JitKernelBase {
 public:
@@ -179,6 +184,102 @@ private:
     void borderPadding(const Vmm& vCoordDst, const Vmm& vCoordOrigin, const coord dim);
     void reflectionPadding(const Vmm& vCoordDst, const Vmm& vCoordOrigin, const coord dim);
     void bicubicCoefficients(const Vmm& vCoef, const Vmm& vDX, const uint8_t idx);
+    void tail();
+
+    // Aux
+    void dataTypeShiftPs2Dq(const Vmm& vDst, const Vmm& vSrc);
+    void hwShiftPs2dq(const Vmm& vDst, const Vmm& vHCoord, const Vmm& vWCoord, const Vmm& vWidth);
+};
+
+
+template <dnnl::impl::cpu::x64::cpu_isa_t isa>
+class GridSample3DKernel : public GridSampleKernelBase {
+public:
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(GridSample3DKernel)
+
+    explicit GridSample3DKernel(const GridSampleKernelConfParams& jcp);
+
+    void create_ker() override;
+    void generate() override;
+
+    using Vmm = typename dnnl::impl::utils::conditional3<isa == dnnl::impl::cpu::x64::avx512_core,
+                                                         Xbyak::Zmm,
+                                                         isa == dnnl::impl::cpu::x64::sse41,
+                                                         Xbyak::Xmm,
+                                                         Xbyak::Ymm>::type;
+    using Vmask = typename dnnl::impl::utils::conditional3<isa == dnnl::impl::cpu::x64::avx512_core,
+                                                           Xbyak::Opmask,
+                                                           isa == dnnl::impl::cpu::x64::sse41,
+                                                           Xbyak::Xmm,
+                                                           Xbyak::Ymm>::type;
+
+private:
+    uint8_t dataTypeShift = 0;
+
+    // Suffix "B" means "In Bytes", "F" - float.
+    // 64b registers.
+    RegistersPool::Reg<Xbyak::Reg64> regSrc;
+    RegistersPool::Reg<Xbyak::Reg64> regGrid;
+    RegistersPool::Reg<Xbyak::Reg64> regDst;
+    RegistersPool::Reg<Xbyak::Reg64> regChannelNum;
+    RegistersPool::Reg<Xbyak::Reg64> regWorkAmount;
+    RegistersPool::Reg<Xbyak::Reg64> regSrcChannelStepB;
+    RegistersPool::Reg<Xbyak::Reg64> regDstChannelStepB;
+
+    const Xbyak::Reg64 regParams = Xbyak::Reg64(dnnl::impl::cpu::x64::abi_param_regs[0]);
+
+    // Tail mask.
+    RegistersPool::Reg<Vmask> kTailMask;
+
+    // Vector registers.
+    RegistersPool::Reg<Vmm> vSrcHeightF;
+    RegistersPool::Reg<Vmm> vSrcWidthF;
+    RegistersPool::Reg<Vmm> vSrcDepthF;
+    RegistersPool::Reg<Vmm> vZeros;
+    RegistersPool::Reg<Vmm> vHalfF;
+    RegistersPool::Reg<Vmm> vOnesF;
+    RegistersPool::Reg<Vmm> vDDenormCoefF;
+    RegistersPool::Reg<Vmm> vWDenormCoefF;
+    RegistersPool::Reg<Vmm> vHDenormCoefF;
+    RegistersPool::Reg<Vmm> vGridPermMask;
+    RegistersPool::Reg<Vmm> vDataTypeSizeB;  // for ZEROS padding
+    RegistersPool::Reg<Vmm> vSrcWidthB;      // for ZEROS padding
+    RegistersPool::Reg<Vmm> vSrcDepthB;      // for ZEROS padding
+
+    RegistersPool::Reg<Vmm> vSrcHeightSub1F;  // for BORDER padding
+    RegistersPool::Reg<Vmm> vSrcWidthSub1F;   // for BORDER padding
+    RegistersPool::Reg<Vmm> vSrcDepthSub1F;   // for BORDER padding
+
+    RegistersPool::Reg<Vmm> vSrcHeightMul2F;      // for REFLECTION padding
+    RegistersPool::Reg<Vmm> vSrcWidthMul2F;       // for REFLECTION padding
+    RegistersPool::Reg<Vmm> vSrcDepthMul2F;       // for REFLECTION padding
+    RegistersPool::Reg<Vmm> vSrcHeightMul2Sub1F;  // for REFLECTION padding
+    RegistersPool::Reg<Vmm> vSrcWidthMul2Sub1F;   // for REFLECTION padding
+    RegistersPool::Reg<Vmm> vSrcDepthMul2Sub1F;   // for REFLECTION padding
+    RegistersPool::Reg<Vmm> vAbsMask;             // for REFLECTION padding
+
+    RegistersPool::Reg<Vmm> vConst_0_75;  // for BICUBIC interpolation
+    RegistersPool::Reg<Vmm> vConst_1_25;  // for BICUBIC interpolation
+    RegistersPool::Reg<Vmm> vConst_1_50;  // for BICUBIC interpolation
+    RegistersPool::Reg<Vmm> vConst_2_00;  // for BICUBIC interpolation
+    RegistersPool::Reg<Vmm> vConst_2_25;  // for BICUBIC interpolation
+
+    void initVectors();
+    void process();
+    void spatialLoop();
+    void getCoordinates(const Vmm& vDCoord, const Vmm& vHCoord, const Vmm& vWCoord);
+    void getTailCoordinates(const Vmm& vDCoord, const Vmm& vHCoord, const Vmm& vWCoord);
+    void denormalizeRawCoordinates(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord);
+    void interpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
+    void bilinearInterpolation2D(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, const Vmm& vDZ, bool tail);    
+    void bilinearInterpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
+    void nearestInterpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
+    void zerosPadding(const Vmask& kDst, const Vmm& vDCoord, const Vmm& vHCoord, const Vmm& vWCoord);
+    void zerosPaddingW(const Vmask& kDst, const Vmm& vCoord);
+    void zerosPaddingH(const Vmask& kDst, const Vmm& vCoord, const Vmask& kMaskW);
+    void zerosPaddingD(const Vmask& kDst, const Vmm& vCoord, const Vmask& kMaskWH);
+    void borderPadding(const Vmm& vCoordDst, const Vmm& vCoordOrigin, const coord dim);
+    void reflectionPadding(const Vmm& vCoordDst, const Vmm& vCoordOrigin, const coord dim);
     void tail();
 
     // Aux

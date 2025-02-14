@@ -26,16 +26,21 @@ public:
     struct threadExecParams {
         uint64_t batchNum = 1lu;
         uint64_t channelsNum = 1lu;
+        std::vector<float> srcDepthF{1.f};
         std::vector<float> srcHeightF{1.f};
         std::vector<float> srcWidthF{1.f};
         std::vector<int> srcWidthB{1lu};
         std::vector<int> dataTypeSize{1lu};
+        std::vector<float> srcDepthMul2F{1.f};
         std::vector<float> srcHeightMul2F{1.f};
         std::vector<float> srcWidthMul2F{1.f};
+        std::vector<float> srcDepthMul2Sub1F{1.f};
         std::vector<float> srcHeightMul2Sub1F{1.f};
         std::vector<float> srcWidthMul2Sub1F{1.f};
+        std::vector<float> srcDepthSub1F{1.f};
         std::vector<float> srcHeightSub1F{1.f};
         std::vector<float> srcWidthSub1F{1.f};
+        std::vector<float> dDenormCoefF{1.f};
         std::vector<float> wDenormCoefF{1.f};
         std::vector<float> hDenormCoefF{1.f};
         uint64_t gridStartB = 0lu;
@@ -54,6 +59,7 @@ protected:
     void prepareParams() override;
 
 private:
+    bool is2D = true;
     bool alignCorners = false;
     GridSampleInterpolationMode interpolationMode = GridSampleInterpolationMode::BILINEAR;
     GridSamplePaddingMode paddingMode = GridSamplePaddingMode::ZEROS;
