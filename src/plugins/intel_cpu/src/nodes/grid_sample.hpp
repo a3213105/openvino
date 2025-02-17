@@ -30,6 +30,7 @@ public:
         std::vector<float> srcHeightF{1.f};
         std::vector<float> srcWidthF{1.f};
         std::vector<int> srcWidthB{1lu};
+        std::vector<int> srcWidthHeightB{1lu};
         std::vector<int> dataTypeSize{1lu};
         std::vector<float> srcDepthMul2F{1.f};
         std::vector<float> srcHeightMul2F{1.f};

@@ -52,6 +52,7 @@ struct GridSamplesKernelExecArgs {
     const void* wDenormCoefF;
     const void* hDenormCoefF;
     const void* srcWidthB;
+    const void* srcWidthHeightB;
     const void* srcHeightMul2F;
     const void* srcWidthMul2F;
     const void* srcDepthMul2F;
@@ -235,16 +236,33 @@ private:
     RegistersPool::Reg<Vmm> vSrcHeightF;
     RegistersPool::Reg<Vmm> vSrcWidthF;
     RegistersPool::Reg<Vmm> vSrcDepthF;
+    RegistersPool::Reg<Vmm> vSrcHeightWidthF;
     RegistersPool::Reg<Vmm> vZeros;
     RegistersPool::Reg<Vmm> vHalfF;
     RegistersPool::Reg<Vmm> vOnesF;
     RegistersPool::Reg<Vmm> vDDenormCoefF;
     RegistersPool::Reg<Vmm> vWDenormCoefF;
     RegistersPool::Reg<Vmm> vHDenormCoefF;
+
     RegistersPool::Reg<Vmm> vGridPermMask;
+    RegistersPool::Reg<Vmm> vY0Mask;
+    RegistersPool::Reg<Vmm> vZ0Mask;
+    RegistersPool::Reg<Vmm> vX1Mask;
+    RegistersPool::Reg<Vmm> vY1Mask;
+    RegistersPool::Reg<Vmm> vZ1Mask;
+    RegistersPool::Reg<Vmm> vX2Mask;
+    RegistersPool::Reg<Vmm> vY2Mask;
+    RegistersPool::Reg<Vmm> vZ2Mask;
+    RegistersPool::Reg<Vmm> vKey0;
+    RegistersPool::Reg<Vmm> vKey1;
+    RegistersPool::Reg<Vmm> vKey2;
+    RegistersPool::Reg<Vmm> vKey3;
+    RegistersPool::Reg<Vmm> vKey4;
+    RegistersPool::Reg<Vmm> vKey5;
+
     RegistersPool::Reg<Vmm> vDataTypeSizeB;  // for ZEROS padding
     RegistersPool::Reg<Vmm> vSrcWidthB;      // for ZEROS padding
-    RegistersPool::Reg<Vmm> vSrcDepthB;      // for ZEROS padding
+    RegistersPool::Reg<Vmm> vSrcWidthHeightB;      // for ZEROS padding
 
     RegistersPool::Reg<Vmm> vSrcHeightSub1F;  // for BORDER padding
     RegistersPool::Reg<Vmm> vSrcWidthSub1F;   // for BORDER padding
@@ -271,7 +289,8 @@ private:
     void getTailCoordinates(const Vmm& vDCoord, const Vmm& vHCoord, const Vmm& vWCoord);
     void denormalizeRawCoordinates(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord);
     void interpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
-    void bilinearInterpolation2D(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, const Vmm& vDZ, bool tail);    
+    void bilinearInterpolation2D1(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, const Vmm& vDZ, bool tail);    
+    void bilinearInterpolation2D2(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, const Vmm& vDZ, bool tail);    
     void bilinearInterpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
     void nearestInterpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
     void zerosPadding(const Vmask& kDst, const Vmm& vDCoord, const Vmm& vHCoord, const Vmm& vWCoord);

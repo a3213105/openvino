@@ -174,6 +174,7 @@ void GridSample::createPrimitive() {
             p.srcWidthF.resize(dataElPerVec);
             p.srcDepthF.resize(dataElPerVec);
             p.srcWidthB.resize(dataElPerVec);
+            p.srcWidthHeightB.resize(dataElPerVec);
             p.dataTypeSize.resize(dataElPerVec);
             p.srcHeightSub1F.resize(dataElPerVec);
             p.srcWidthSub1F.resize(dataElPerVec);
@@ -281,6 +282,7 @@ void GridSample::prepareParams() {
                 std::fill(p.srcHeightMul2F.begin(), p.srcHeightMul2F.end(), p.srcHeightMul2F[0]);
                 std::fill(p.srcWidthMul2F.begin(), p.srcWidthMul2F.end(), p.srcWidthMul2F[0]);
                 std::fill(p.srcWidthB.begin(), p.srcWidthB.end(), p.srcWidthB[0]);
+                std::fill(p.srcWidthHeightB.begin(), p.srcWidthHeightB.end(), p.srcWidthHeightB[0]);
                 std::fill(p.srcHeightMul2Sub1F.begin(), p.srcHeightMul2Sub1F.end(), p.srcHeightMul2Sub1F[0]);
                 std::fill(p.srcWidthMul2Sub1F.begin(), p.srcWidthMul2Sub1F.end(), p.srcWidthMul2Sub1F[0]);
                 if (alignCorners) {
@@ -327,6 +329,7 @@ void GridSample::prepareParams() {
             p.srcWidthMul2F[0] = p.srcWidthF[0] * 2.f;
 
             p.srcWidthB[0] = srcDataShape[4] * dataTypeSize;
+            p.srcWidthHeightB[0] = srcDataShape[3] * srcDataShape[4] * dataTypeSize;
 
             if (alignCorners) {
                 p.srcDepthMul2Sub1F[0] = p.srcDepthF[0] == 1.f ? 1.f : p.srcDepthSub1F[0] * 2.f;
@@ -352,6 +355,7 @@ void GridSample::prepareParams() {
                 std::fill(p.srcHeightMul2F.begin(), p.srcHeightMul2F.end(), p.srcHeightMul2F[0]);
                 std::fill(p.srcWidthMul2F.begin(), p.srcWidthMul2F.end(), p.srcWidthMul2F[0]);
                 std::fill(p.srcWidthB.begin(), p.srcWidthB.end(), p.srcWidthB[0]);
+                std::fill(p.srcWidthHeightB.begin(), p.srcWidthHeightB.end(), p.srcWidthHeightB[0]);
                 std::fill(p.srcDepthMul2Sub1F.begin(), p.srcDepthMul2Sub1F.end(), p.srcDepthMul2Sub1F[0]);
                 std::fill(p.srcHeightMul2Sub1F.begin(), p.srcHeightMul2Sub1F.end(), p.srcHeightMul2Sub1F[0]);
                 std::fill(p.srcWidthMul2Sub1F.begin(), p.srcWidthMul2Sub1F.end(), p.srcWidthMul2Sub1F[0]);
@@ -386,6 +390,7 @@ void GridSample::execute(dnnl::stream strm) {
             arg.srcHeightF = p.srcHeightF.data();
             arg.srcWidthF = p.srcWidthF.data();
             arg.srcWidthB = p.srcWidthB.data();
+            arg.srcWidthHeightB = p.srcWidthHeightB.data();
             arg.srcChannelStepB = p.srcChannelStepB;
             arg.dstChannelStepB = p.dstChannelStepB;
             arg.srcBatchStepB = p.srcBatchStepB;
@@ -423,6 +428,7 @@ void GridSample::execute(dnnl::stream strm) {
             arg.srcHeightF = p.srcHeightF.data();
             arg.srcWidthF = p.srcWidthF.data();
             arg.srcWidthB = p.srcWidthB.data();
+            arg.srcWidthHeightB = p.srcWidthHeightB.data();
             arg.srcChannelStepB = p.srcChannelStepB;
             arg.dstChannelStepB = p.dstChannelStepB;
             arg.srcBatchStepB = p.srcBatchStepB;
