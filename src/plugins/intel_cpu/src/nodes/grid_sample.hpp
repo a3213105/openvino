@@ -61,6 +61,7 @@ protected:
 
 private:
     bool is2D = true;
+    bool isSimple3D = false;
     bool alignCorners = false;
     GridSampleInterpolationMode interpolationMode = GridSampleInterpolationMode::BILINEAR;
     GridSamplePaddingMode paddingMode = GridSamplePaddingMode::ZEROS;

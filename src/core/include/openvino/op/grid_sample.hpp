@@ -23,6 +23,7 @@ public:
 
     /// \brief A Structure which contains all GridSample attributes
     struct Attributes {
+        bool simple_3d = false;
         // A flag which specifies whether to align the grid extrema values with the borders or center points
         // of the input tensor's border pixels.
         bool align_corners = false;
@@ -32,8 +33,9 @@ public:
         PaddingMode padding_mode = PaddingMode::ZEROS;
 
         Attributes() = default;
-        Attributes(bool align_corners, InterpolationMode mode, PaddingMode padding_mode)
-            : align_corners{align_corners},
+        Attributes(bool simple_3d, bool align_corners, InterpolationMode mode, PaddingMode padding_mode)
+            : simple_3d{simple_3d},
+              align_corners{align_corners},
               mode{mode},
               padding_mode{padding_mode} {}
     };

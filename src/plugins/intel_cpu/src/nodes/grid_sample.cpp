@@ -60,7 +60,6 @@ GridSample::GridSample(const std::shared_ptr<ov::Node>& op, const GraphContext::
     if (gridShape.isStatic() && gridShape.getDims()[gridShape.getRank()-1] != dims)
         THROW_CPU_NODE_ERR("has incorrect shape of the Grid input. The 4th dimension should be equal to %d.", dims);
 
-    is2D = dataShape.getRank() != 5;
     const auto& attributes = ov::as_type_ptr<ov::op::v9::GridSample>(op)->get_attributes();
     alignCorners = attributes.align_corners;
     switch (attributes.mode) {
@@ -88,6 +87,16 @@ GridSample::GridSample(const std::shared_ptr<ov::Node>& op, const GraphContext::
         break;
     default:
         THROW_CPU_NODE_ERR("supports only BORDER, REFLECTION, ZEROS paddings modes.");
+    }
+    if (dataShape.getRank() == 5) {
+        is2D = false;
+        if(gridShape.isStatic() && dataShape.isStatic()) {
+            auto dataShapeDims = dataShape.getDims();
+            auto gridShapeDims = gridShape.getDims();
+            if(dataShapeDims[0] == gridShapeDims[0] && dataShapeDims[2] == gridShapeDims[1] 
+                && dataShapeDims[3] == gridShapeDims[2] && dataShapeDims[4] == gridShapeDims[3])
+               isSimple3D = attributes.simple_3d;
+        }
     }
 }
 
@@ -150,13 +159,17 @@ void GridSample::createPrimitive() {
         }
     } else {
         if (x64::mayiuse(x64::avx512_core)) {
-            jitKernel.reset(new kernel::GridSample3DKernel<x64::avx512_core>(jcp));
+            if (isSimple3D)
+                jitKernel.reset(new kernel::GridSample3DSimpleKernel<x64::avx512_core>(jcp));  
+            else 
+                jitKernel.reset(new kernel::GridSample3DKernel<x64::avx512_core>(jcp));
         } else if (x64::mayiuse(x64::avx2)) {
             jitKernel.reset(new kernel::GridSample3DKernel<x64::avx2>(jcp));
         } else if (x64::mayiuse(x64::sse41)) {
             jitKernel.reset(new kernel::GridSample3DKernel<x64::sse41>(jcp));
         }
     }
+
 
     if (!jitKernel) {
         THROW_CPU_NODE_ERR("could not create JIT kernel.");
@@ -217,14 +230,16 @@ void GridSample::prepareParams() {
     const auto& gridShape = gridMemPtr->getStaticDims();
     const auto& dstShape = dstMemPtr->getStaticDims();
     uint64_t totalWork = dstShape[2] * dstShape[3];
-    std::cout << "Input=" << srcDataShape[0] << "," << srcDataShape[1] << "," << srcDataShape[2] << "," << srcDataShape[3] << "," << srcDataShape[4]
-    << ", grid=" << gridShape[0] << "," << gridShape[1] << "," << gridShape[2] << "," << gridShape[3] << "," << gridShape[4]
-    << ", output=" << dstShape[0] << "," << dstShape[1] << "," << dstShape[2] << "," << dstShape[3] << "," << dstShape[4]
-    << ", alignCorners=" << alignCorners << std::endl;
     if (dstShape.size()==5) {
         totalWork *= dstShape[4];
+        if(isSimple3D) {
+            totalWork *= (dstShape[0] * dstShape[1]);
+        }
     }
-    const uint64_t wpt = ((totalWork / dataElPerVec) / m_threads_num + 1) * dataElPerVec;
+    uint64_t wpt = ((totalWork / dataElPerVec) / m_threads_num);
+    if (wpt * m_threads_num * dataElPerVec < totalWork)
+        wpt += 1;
+    wpt *= dataElPerVec;
 
     if (is2D) {
         parallel_nt(m_threads_num, [&](const int ithr, const int nthr) {
@@ -309,18 +324,18 @@ void GridSample::prepareParams() {
             p.srcHeightF[0] = srcDataShape[3];
             p.srcWidthF[0] = srcDataShape[4];
     
-            p.gridStartB = dstStart * 2 * gridTypeSize;
+            p.gridStartB = dstStart * gridShape[4] * gridTypeSize;
             p.dstStartB = dstStart * dataTypeSize;
     
             p.srcBatchStepB =
                 std::accumulate(srcDataShape.begin() + 1, srcDataShape.end(), dataTypeSize, std::multiplies<Dim>());
-            p.gridBatchStepB = (dstShape[2] * dstShape[3] * dstShape[4] - p.workAmount) * 2 * gridTypeSize;
+            p.gridBatchStepB = (gridShape[1] * gridShape[2] * gridShape[3] - p.workAmount) * gridShape[4] * gridTypeSize;
             p.dstBatchStepB = (dstShape[1] * dstShape[2] * dstShape[3] * dstShape[4] - p.workAmount) * dataTypeSize;
     
             p.srcChannelStepB = srcDataShape[2] * srcDataShape[3] * srcDataShape[4] * dataTypeSize;
             p.dstChannelStepB = dstShape[2] * dstShape[3] * dstShape[4] * dataTypeSize;
             p.dataTypeSize[0] = dataTypeSize;
-    
+
             p.srcDepthSub1F[0] = p.srcDepthF[0] - 1.f;
             p.srcHeightSub1F[0] = p.srcHeightF[0] - 1.f;
             p.srcWidthSub1F[0] = p.srcWidthF[0] - 1.f;

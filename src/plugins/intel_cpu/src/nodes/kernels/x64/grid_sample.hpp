@@ -236,7 +236,6 @@ private:
     RegistersPool::Reg<Vmm> vSrcHeightF;
     RegistersPool::Reg<Vmm> vSrcWidthF;
     RegistersPool::Reg<Vmm> vSrcDepthF;
-    RegistersPool::Reg<Vmm> vSrcHeightWidthF;
     RegistersPool::Reg<Vmm> vZeros;
     RegistersPool::Reg<Vmm> vHalfF;
     RegistersPool::Reg<Vmm> vOnesF;
@@ -245,20 +244,9 @@ private:
     RegistersPool::Reg<Vmm> vHDenormCoefF;
 
     RegistersPool::Reg<Vmm> vGridPermMask;
-    RegistersPool::Reg<Vmm> vY0Mask;
-    RegistersPool::Reg<Vmm> vZ0Mask;
-    RegistersPool::Reg<Vmm> vX1Mask;
-    RegistersPool::Reg<Vmm> vY1Mask;
-    RegistersPool::Reg<Vmm> vZ1Mask;
-    RegistersPool::Reg<Vmm> vX2Mask;
-    RegistersPool::Reg<Vmm> vY2Mask;
-    RegistersPool::Reg<Vmm> vZ2Mask;
-    RegistersPool::Reg<Vmm> vKey0;
-    RegistersPool::Reg<Vmm> vKey1;
-    RegistersPool::Reg<Vmm> vKey2;
-    RegistersPool::Reg<Vmm> vKey3;
-    RegistersPool::Reg<Vmm> vKey4;
-    RegistersPool::Reg<Vmm> vKey5;
+    RegistersPool::Reg<Vmm> vXMask;
+    RegistersPool::Reg<Vmm> vYMask;
+    RegistersPool::Reg<Vmm> vZMask;
 
     RegistersPool::Reg<Vmm> vDataTypeSizeB;  // for ZEROS padding
     RegistersPool::Reg<Vmm> vSrcWidthB;      // for ZEROS padding
@@ -276,12 +264,6 @@ private:
     RegistersPool::Reg<Vmm> vSrcDepthMul2Sub1F;   // for REFLECTION padding
     RegistersPool::Reg<Vmm> vAbsMask;             // for REFLECTION padding
 
-    RegistersPool::Reg<Vmm> vConst_0_75;  // for BICUBIC interpolation
-    RegistersPool::Reg<Vmm> vConst_1_25;  // for BICUBIC interpolation
-    RegistersPool::Reg<Vmm> vConst_1_50;  // for BICUBIC interpolation
-    RegistersPool::Reg<Vmm> vConst_2_00;  // for BICUBIC interpolation
-    RegistersPool::Reg<Vmm> vConst_2_25;  // for BICUBIC interpolation
-
     void initVectors();
     void process();
     void spatialLoop();
@@ -289,8 +271,9 @@ private:
     void getTailCoordinates(const Vmm& vDCoord, const Vmm& vHCoord, const Vmm& vWCoord);
     void denormalizeRawCoordinates(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord);
     void interpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
+    void bilinearInterpolation2D0(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, const Vmm& vDZ, bool tail);    
     void bilinearInterpolation2D1(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, const Vmm& vDZ, bool tail);    
-    void bilinearInterpolation2D2(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, const Vmm& vDZ, bool tail);    
+    // void bilinearInterpolation2D2(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, const Vmm& vDZ, bool tail);    
     void bilinearInterpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
     void nearestInterpolation(const Vmm& vWCoord, const Vmm& vHCoord, const Vmm& vDCoord, bool tail = false);
     void zerosPadding(const Vmask& kDst, const Vmm& vDCoord, const Vmm& vHCoord, const Vmm& vWCoord);
@@ -304,6 +287,51 @@ private:
     // Aux
     void dataTypeShiftPs2Dq(const Vmm& vDst, const Vmm& vSrc);
     void hwShiftPs2dq(const Vmm& vDst, const Vmm& vHCoord, const Vmm& vWCoord, const Vmm& vWidth);
+};
+
+template <dnnl::impl::cpu::x64::cpu_isa_t isa>
+class GridSample3DSimpleKernel : public GridSampleKernelBase {
+public:
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(GridSample3DSimpleKernel)
+
+    explicit GridSample3DSimpleKernel(const GridSampleKernelConfParams& jcp);
+
+    void create_ker() override;
+    void generate() override;
+
+    using Vmm = typename dnnl::impl::utils::conditional3<isa == dnnl::impl::cpu::x64::avx512_core,
+                                                         Xbyak::Zmm,
+                                                         isa == dnnl::impl::cpu::x64::sse41,
+                                                         Xbyak::Xmm,
+                                                         Xbyak::Ymm>::type;
+    using Vmask = typename dnnl::impl::utils::conditional3<isa == dnnl::impl::cpu::x64::avx512_core,
+                                                           Xbyak::Opmask,
+                                                           isa == dnnl::impl::cpu::x64::sse41,
+                                                           Xbyak::Xmm,
+                                                           Xbyak::Ymm>::type;
+
+private:
+    uint8_t dataTypeShift = 0;
+
+    // Suffix "B" means "In Bytes", "F" - float.
+    // 64b registers.
+    RegistersPool::Reg<Xbyak::Reg64> regSrc;
+    RegistersPool::Reg<Xbyak::Reg64> regDst;
+    RegistersPool::Reg<Xbyak::Reg64> regChannelNum;
+    RegistersPool::Reg<Xbyak::Reg64> regWorkAmount;
+    RegistersPool::Reg<Xbyak::Reg64> regSrcChannelStepB;
+    RegistersPool::Reg<Xbyak::Reg64> regDstChannelStepB;
+    const Xbyak::Reg64 regParams = Xbyak::Reg64(dnnl::impl::cpu::x64::abi_param_regs[0]);
+    // Vector registers.
+    RegistersPool::Reg<Vmm> vSrcHeightF;
+    RegistersPool::Reg<Vmm> vSrcWidthF;
+    RegistersPool::Reg<Vmm> vSrcDepthF;
+    RegistersPool::Reg<Vmm> vDataTypeSizeB;  // for ZEROS padding
+    RegistersPool::Reg<Vmm> vSrcWidthB;      // for ZEROS padding
+    RegistersPool::Reg<Vmm> vSrcWidthHeightB;      // for ZEROS padding
+
+
+    void process();
 };
 
 #endif  // OPENVINO_ARCH_X86_64
