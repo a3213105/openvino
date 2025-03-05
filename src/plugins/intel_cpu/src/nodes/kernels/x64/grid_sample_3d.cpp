@@ -1518,7 +1518,6 @@ void GridSample3DKernel<x64::avx512_core>::bilinearInterpolation2D0(const Vmm& v
             uni_vroundps(vQ1, vQ1, 0x3);  // Truncation
             uni_vcvtps2dq(vQ1, vQ1);
         }
-        RegPrinter::print<float>(*this, vQ1.reg, "Res0 out");
 
         if (!tail) {
             uni_vmovups(ptr[rDstTmp], vQ1);
@@ -1744,7 +1743,6 @@ void GridSample3DKernel<isa>::bilinearInterpolation2D0(const Vmm& vWCoord, const
             uni_vcvtps2dq(vQ1, vQ1);
         }
 
-        RegPrinter::print<float>(*this, vQ1.reg, "Res0 out");
         if (!tail) {
             uni_vmovups(ptr[rDstTmp], vQ1);
         } else {
@@ -1896,7 +1894,6 @@ void GridSample3DKernel<x64::avx512_core>::bilinearInterpolation2D1(const Vmm& v
             uni_vcvtps2dq(vQ1, vQ1);
         }
 
-        RegPrinter::print<float>(*this, vQ1.reg, "Res1 out");
         if (!tail) {
             uni_vmovups(ptr[rDstTmp], vQ1);
         } else {
@@ -2118,8 +2115,6 @@ void GridSample3DKernel<isa>::bilinearInterpolation2D1(const Vmm& vWCoord, const
             uni_vroundps(vQ1, vQ1, 0x3);  // Truncation
             uni_vcvtps2dq(vQ1, vQ1);
         }
-
-        RegPrinter::print<float>(*this, vQ1.reg, "Res1 out");
 
         if (!tail) {
             uni_vmovups(ptr[rDstTmp], vQ1);
