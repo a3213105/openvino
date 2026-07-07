@@ -230,7 +230,8 @@ void IStreamsExecutor::Config::update_executor_config() {
             int start = proc_type_table.size() > 1 ? 1 : 0;
             std::vector<int> core_types;
             // Using cores crossed sockets or hyper threads when streams = 1
-            if (_streams == 1 && _threads_per_stream > proc_type_table[start][ov::MAIN_CORE_PROC]) {
+            if (_streams == 1 && proc_type_table[start][ov::MAIN_CORE_PROC] > 0 &&
+                _threads_per_stream > proc_type_table[start][ov::MAIN_CORE_PROC]) {
                 stream_info[NUMBER_OF_STREAMS] = _streams;
                 stream_info[PROC_TYPE] = ALL_PROC;
                 stream_info[STREAM_NUMA_NODE_ID] = proc_type_table.size() > 1 ? -1 : 0;

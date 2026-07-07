@@ -60,12 +60,16 @@ struct CPUStreamsExecutor::Impl {
                     _impl->_streamIdQueue.pop();
                 }
             }
-            _numaNodeId =
-                _impl->_config.get_streams()
-                    ? _impl->_usedNumaNodes.at((_streamId % _impl->_config.get_streams()) /
-                                               ((_impl->_config.get_streams() + _impl->_usedNumaNodes.size() - 1) /
-                                                _impl->_usedNumaNodes.size()))
-                    : _impl->_usedNumaNodes.at(_streamId % _impl->_usedNumaNodes.size());
+            if (_impl->_usedNumaNodes.empty()) {
+                _numaNodeId = 0;
+            } else {
+                _numaNodeId =
+                    _impl->_config.get_streams()
+                        ? _impl->_usedNumaNodes.at((_streamId % _impl->_config.get_streams()) /
+                                                   ((_impl->_config.get_streams() + _impl->_usedNumaNodes.size() - 1) /
+                                                    _impl->_usedNumaNodes.size()))
+                        : _impl->_usedNumaNodes.at(_streamId % _impl->_usedNumaNodes.size());
+            }
 #if OV_THREAD == OV_THREAD_TBB || OV_THREAD == OV_THREAD_TBB_AUTO
             if (is_cpu_map_available() && _impl->_config.get_streams_info_table().size() > 0) {
                 init_stream();
@@ -141,13 +145,21 @@ struct CPUStreamsExecutor::Impl {
                                                             .set_max_concurrency(concurrency)
                                                             .set_max_threads_per_core(max_threads_per_core)});
             } else if (stream_type == STREAM_WITH_CORE_TYPE) {
-                const auto real_core_type = (core_type == MAIN_CORE_PROC || core_type == HYPER_THREADING_PROC)
-                                                ? custom::info::core_types().back()
-                                                : custom::info::core_types().front();
-                _taskArena.reset(new custom::task_arena{custom::task_arena::constraints{}
-                                                            .set_core_type(real_core_type)
-                                                            .set_max_concurrency(concurrency)
-                                                            .set_max_threads_per_core(max_threads_per_core)});
+                const auto available_core_types = custom::info::core_types();
+                if (available_core_types.empty()) {
+                    _taskArena.reset(new custom::task_arena{custom::task_arena::constraints{}
+                                                                .set_max_concurrency(concurrency)
+                                                                .set_max_threads_per_core(max_threads_per_core)});
+                } else {
+                    const auto real_core_type =
+                        (core_type == MAIN_CORE_PROC || core_type == HYPER_THREADING_PROC)
+                            ? available_core_types.back()
+                            : available_core_types.front();
+                    _taskArena.reset(new custom::task_arena{custom::task_arena::constraints{}
+                                                                .set_core_type(real_core_type)
+                                                                .set_max_concurrency(concurrency)
+                                                                .set_max_threads_per_core(max_threads_per_core)});
+                }
             } else {
                 _taskArena.reset(new custom::task_arena{concurrency});
                 _cpu_ids =
@@ -344,6 +356,9 @@ struct CPUStreamsExecutor::Impl {
               this) {
         _exectorMgr = executor_manager();
         auto numaNodes = get_available_numa_nodes();
+        if (numaNodes.empty()) {
+            numaNodes.push_back(0);
+        }
         int streams_num = _config.get_streams();
         if (streams_num != 0) {
             std::copy_n(std::begin(numaNodes),

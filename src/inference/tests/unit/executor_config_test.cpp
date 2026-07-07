@@ -1104,6 +1104,22 @@ ExecutorConfigTestCase _pecore_streams_info_table_3 = {
     {{0, 2}, {4, 6}, {16, 17}, {18, 19}, {1, 3}, {5, 7}},
 };
 
+ExecutorConfigTestCase _ecore_only_streams_1_threads_1 = {
+    {
+        {128, 0, 128, 0, 0, 0},
+    },
+    {},
+    1,
+    1,
+    ov::hint::SchedulingCoreType::ANY_CORE,
+    false,
+    {},
+    {
+        {1, EFFICIENT_CORE_PROC, 1, 0, 0},
+    },
+    {},
+};
+
 TEST_P(ExecutorConfigTest, ExecutorConfig) {}
 
 INSTANTIATE_TEST_SUITE_P(smoke_ExecutorConfig,
@@ -1138,6 +1154,7 @@ INSTANTIATE_TEST_SUITE_P(smoke_ExecutorConfig,
                                          _pecore_streams_10_threads_1_binding,
                                          _pecore_streams_info_table_1,
                                          _pecore_streams_info_table_2,
-                                         _pecore_streams_info_table_3));
+                                         _pecore_streams_info_table_3,
+                                         _ecore_only_streams_1_threads_1));
 #endif
 }  // namespace
