@@ -161,10 +161,44 @@ CPU::CPU() {
         std::vector<int> socket_list;
         std::vector<std::vector<int>> numa_node_list;
         std::vector<std::vector<int>> valid_cpu_mapping_table;
+        const size_t mask_size = CPU_ALLOC_SIZE(ncpus);
+        std::vector<int> affinity_cpu_ids;
+        affinity_cpu_ids.reserve(CPU_COUNT_S(mask_size, mask.get()));
+
+        for (int cpu = 0; cpu < ncpus; cpu++) {
+            if (CPU_ISSET_S(cpu, mask_size, mask.get())) {
+                affinity_cpu_ids.push_back(cpu);
+            }
+        }
+
+        if (affinity_cpu_ids.size() >= static_cast<size_t>(_processors)) {
+            int logical_idx = 0, zero_based_dense_ids = true;
+            for (size_t i = 0; i < _cpu_mapping_table.size() && logical_idx < _processors; i++) {
+                if (_cpu_mapping_table[i][CPU_MAP_USED_FLAG] == CPU_BLOCKED) {
+                    continue;
+                }
+                if (_cpu_mapping_table[i][CPU_MAP_PROCESSOR_ID] != logical_idx) {
+                    zero_based_dense_ids = false;
+                    break;
+                }
+                logical_idx++;
+            }
+
+            if (zero_based_dense_ids && logical_idx == _processors) {
+                logical_idx = 0;
+                for (size_t i = 0; i < _cpu_mapping_table.size() && logical_idx < _processors; i++) {
+                    if (_cpu_mapping_table[i][CPU_MAP_USED_FLAG] == CPU_BLOCKED) {
+                        continue;
+                    }
+                    _cpu_mapping_table[i][CPU_MAP_PROCESSOR_ID] = affinity_cpu_ids[logical_idx++];
+                }
+            }
+        }
 
         numa_node_list.assign(_sockets, std::vector<int>());
         for (int i = 0; i < _processors; i++) {
-            if (CPU_ISSET(_cpu_mapping_table[i][CPU_MAP_PROCESSOR_ID], mask) &&
+            const int proc_id = _cpu_mapping_table[i][CPU_MAP_PROCESSOR_ID];
+            if (proc_id >= 0 && proc_id < ncpus && CPU_ISSET_S(proc_id, mask_size, mask.get()) &&
                 _cpu_mapping_table[i][CPU_MAP_USED_FLAG] != CPU_BLOCKED) {
                 valid_cpu_mapping_table.emplace_back(_cpu_mapping_table[i]);
                 if (_cpu_mapping_table[i][CPU_MAP_CORE_TYPE] == MAIN_CORE_PROC) {
