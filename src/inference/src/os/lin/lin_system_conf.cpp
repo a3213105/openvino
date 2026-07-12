@@ -16,6 +16,7 @@
 #include "dev/threading/thread_affinity.hpp"
 #include "openvino/core/except.hpp"
 #include "openvino/runtime/system_conf.hpp"
+#include "openvino/runtime/threading/cpu_streams_executor_internal.hpp"
 #include "os/cpu_map_info.hpp"
 
 namespace ov {
@@ -161,6 +162,73 @@ CPU::CPU() {
         std::vector<int> socket_list;
         std::vector<std::vector<int>> numa_node_list;
         std::vector<std::vector<int>> valid_cpu_mapping_table;
+        bool remapped_to_affinity_ids = false;
+        auto refresh_core_topology_for_affinity_ids = [&]() {
+            std::map<long long, int> group_id_by_core;
+            std::map<int, int> socket_id_remap;
+            int next_group_id = 0;
+
+            for (size_t i = 0; i < _cpu_mapping_table.size(); i++) {
+                if (_cpu_mapping_table[i][CPU_MAP_USED_FLAG] == CPU_BLOCKED) {
+                    continue;
+                }
+
+                const int proc_id = _cpu_mapping_table[i][CPU_MAP_PROCESSOR_ID];
+                if (proc_id < 0) {
+                    continue;
+                }
+
+                std::ifstream core_id_file("/sys/devices/system/cpu/cpu" + std::to_string(proc_id) +
+                                          "/topology/core_id");
+                std::string core_id_str;
+                if (!core_id_file.is_open() || !std::getline(core_id_file, core_id_str) || core_id_str.empty()) {
+                    continue;
+                }
+
+                int core_id = -1;
+                try {
+                    core_id = std::stoi(core_id_str);
+                } catch (...) {
+                    continue;
+                }
+
+                if (core_id < 0) {
+                    continue;
+                }
+
+                std::ifstream package_id_file("/sys/devices/system/cpu/cpu" + std::to_string(proc_id) +
+                                             "/topology/physical_package_id");
+                std::string package_id_str;
+                if (package_id_file.is_open() && std::getline(package_id_file, package_id_str) &&
+                    !package_id_str.empty()) {
+                    try {
+                        const int package_id = std::stoi(package_id_str);
+                        auto remap_it = socket_id_remap.find(package_id);
+                        if (remap_it == socket_id_remap.end()) {
+                            remap_it = socket_id_remap.insert({package_id, static_cast<int>(socket_id_remap.size())}).first;
+                        }
+                        _cpu_mapping_table[i][CPU_MAP_SOCKET_ID] = remap_it->second;
+                    } catch (...) {
+                    }
+                }
+
+                _cpu_mapping_table[i][CPU_MAP_CORE_ID] = core_id;
+
+                const long long core_key = (static_cast<long long>(_cpu_mapping_table[i][CPU_MAP_SOCKET_ID]) << 32) |
+                                           static_cast<unsigned int>(core_id);
+                auto group_it = group_id_by_core.find(core_key);
+                if (group_it == group_id_by_core.end()) {
+                    group_it = group_id_by_core.insert({core_key, next_group_id++}).first;
+                    _cpu_mapping_table[i][CPU_MAP_CORE_TYPE] = MAIN_CORE_PROC;
+                } else {
+                    _cpu_mapping_table[i][CPU_MAP_CORE_TYPE] = HYPER_THREADING_PROC;
+                }
+                _cpu_mapping_table[i][CPU_MAP_GROUP_ID] = group_it->second;
+            }
+
+            _cores = static_cast<int>(group_id_by_core.size());
+            ov::threading::update_proc_type_table(_cpu_mapping_table, _numa_nodes, _proc_type_table);
+        };
         const size_t mask_size = CPU_ALLOC_SIZE(ncpus);
         std::vector<int> affinity_cpu_ids;
         affinity_cpu_ids.reserve(CPU_COUNT_S(mask_size, mask.get()));
@@ -192,7 +260,12 @@ CPU::CPU() {
                     }
                     _cpu_mapping_table[i][CPU_MAP_PROCESSOR_ID] = affinity_cpu_ids[logical_idx++];
                 }
+                remapped_to_affinity_ids = true;
             }
+        }
+
+        if (remapped_to_affinity_ids) {
+            refresh_core_topology_for_affinity_ids();
         }
 
         numa_node_list.assign(_sockets, std::vector<int>());
@@ -234,7 +307,7 @@ CPU::CPU() {
                                              _proc_type_table,
                                              _cpu_mapping_table);
             }
-            _processors = valid_cpu_mapping_table.size();
+            _processors = _cpu_mapping_table.size();
             _cores = cur_cores;
             _numa_nodes = cur_numa_nodes;
             _sockets = cur_sockets;

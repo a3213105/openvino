@@ -4,6 +4,11 @@
 #include "dev/threading/parallel_custom_arena.hpp"
 
 #include <cstring>
+#include <fstream>
+#include <sstream>
+#include <string>
+
+#include "dev/threading/thread_affinity.hpp"
 
 #include "dev/threading/itt.hpp"
 
@@ -27,6 +32,75 @@
 
 namespace custom {
 namespace detail {
+
+static bool cpuset_online_mismatch() {
+#if !(defined(__APPLE__) || defined(__EMSCRIPTEN__) || defined(_WIN32))
+    std::ifstream online_file("/sys/devices/system/cpu/online");
+    std::string online_info;
+    if (!online_file.is_open() || !std::getline(online_file, online_info) || online_info.empty()) {
+        return false;
+    }
+
+    ov::threading::CpuSet mask;
+    int ncpus = 0;
+    std::tie(mask, ncpus) = ov::threading::get_process_mask();
+    if (mask == nullptr || ncpus <= 0) {
+        return false;
+    }
+
+    std::vector<char> online_cpu(ncpus, 0);
+    std::stringstream ss(online_info);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        if (token.empty()) {
+            continue;
+        }
+
+        int begin_cpu = 0;
+        int end_cpu = 0;
+        size_t dash_pos = token.find('-');
+        try {
+            if (dash_pos == std::string::npos) {
+                begin_cpu = std::stoi(token);
+                end_cpu = begin_cpu;
+            } else {
+                begin_cpu = std::stoi(token.substr(0, dash_pos));
+                end_cpu = std::stoi(token.substr(dash_pos + 1));
+            }
+        } catch (...) {
+            continue;
+        }
+
+        if (end_cpu < begin_cpu) {
+            std::swap(begin_cpu, end_cpu);
+        }
+        if (end_cpu < 0 || begin_cpu >= ncpus) {
+            continue;
+        }
+
+        begin_cpu = std::max(begin_cpu, 0);
+        end_cpu = std::min(end_cpu, ncpus - 1);
+        for (int cpu = begin_cpu; cpu <= end_cpu; cpu++) {
+            online_cpu[cpu] = 1;
+        }
+    }
+
+    const size_t mask_size = CPU_ALLOC_SIZE(ncpus);
+    for (int cpu = 0; cpu < ncpus; cpu++) {
+        if (CPU_ISSET_S(cpu, mask_size, mask.get()) && !online_cpu[cpu]) {
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
+static bool disable_tbb_topology_queries() {
+    static const bool mismatch = [] {
+        return cpuset_online_mismatch();
+    }();
+    return mismatch;
+}
 
 #    if USE_TBBBIND_2_5
 
@@ -81,7 +155,8 @@ static tbb::task_arena::constraints convert_constraints(const custom::task_arena
 class TBBbindSystemTopology {
     TBBbindSystemTopology() {
 #    if USE_TBBBIND_2_5
-        if (is_binding_environment_valid()) {
+        const bool mismatch = disable_tbb_topology_queries();
+        if (is_binding_environment_valid() && !mismatch) {
             TBB_BIND_SCOPE(TBBbindSystemTopology)
             __TBB_internal_initialize_system_topology(get_processors_group_num(),
                                                       numa_nodes_count,
@@ -111,6 +186,9 @@ public:
         std::memcpy(node_indexes.data(), numa_nodes_indexes, numa_nodes_count * sizeof(int));
         return node_indexes;
 #    elif TBB_NUMA_SUPPORT_PRESENT
+        if (disable_tbb_topology_queries()) {
+            return {tbb::task_arena::automatic};
+        }
         return tbb::info::numa_nodes();
 #    else
         return {tbb::task_arena::automatic};
@@ -123,6 +201,9 @@ public:
         std::memcpy(core_type_indexes.data(), core_types_indexes, core_types_count * sizeof(int));
         return core_type_indexes;
 #    elif TBB_HYBRID_CPUS_SUPPORT_PRESENT
+        if (disable_tbb_topology_queries()) {
+            return {tbb::task_arena::automatic};
+        }
         return tbb::info::core_types();
 #    else
         return {tbb::task_arena::automatic};
@@ -140,8 +221,14 @@ public:
         }
         return tbb::this_task_arena::max_concurrency();
 #    elif TBB_HYBRID_CPUS_SUPPORT_PRESENT
+    if (disable_tbb_topology_queries()) {
+        return tbb::this_task_arena::max_concurrency();
+    }
         return tbb::info::default_concurrency(convert_constraints(c));
 #    elif TBB_NUMA_SUPPORT_PRESENT
+    if (disable_tbb_topology_queries()) {
+        return tbb::this_task_arena::max_concurrency();
+    }
         return tbb::info::default_concurrency(c.numa_id);
 #    else
         return tbb::this_task_arena::max_concurrency();
